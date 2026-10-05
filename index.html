@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<!-- ลิงก์เชื่อมโยง Manifest -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4F46E5">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<script>
+  // ลงทะเบียน Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(function(reg) { console.log('ServiceWorker สำเร็จ'); })
+        .catch(function(err) { console.log('ServiceWorker ล้มเหลว', err); });
+    });
+  }
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบลงเวลาด้วย AI & GPS</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://npmcdn.com/flatpickr/dist/l10n/th.js"></script>
+  
+  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+
+  <style> 
+    body { font-family: 'Prompt', sans-serif; background-color: #f3f4f6; } 
+    .flatpickr-input[readonly] { background-color: #ffffff; }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+  <!-- Loading -->
+  <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-indigo-600 mb-3"></div>
+    <p id="loadingText" class="text-gray-700 font-bold text-lg">กำลังโหลด AI ตรวจจับใบหน้า...</p>
+    <p class="text-gray-400 text-sm mt-2">(รอสักครู่ ใช้เวลาโหลดครั้งแรกเล็กน้อย)</p>
+  </div>
+
+  <!-- 1. Login Page -->
+  <div id="pageLogin" class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 hidden">
+    <div class="text-center mb-6">
+      <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+      </div>
+      <h2 class="text-2xl font-bold text-gray-800">เข้าสู่ระบบ</h2>
+      <p class="text-sm text-gray-500 mt-1">ระบบลงเวลาด้วย AI & GPS</p>
+    </div>
+    <div class="space-y-4">
+      <div><label class="block text-sm font-medium text-gray-700 mb-1">Username</label><input type="text" id="logUser" class="w-full px-4 py-3 border rounded-lg outline-none"></div>
+      <div><label class="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" id="logPass" class="w-full px-4 py-3 border rounded-lg outline-none"></div>
+      <button onclick="login()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 shadow-md">ลงชื่อเข้าใช้</button>
+    </div>
+  </div>
+
+  <!-- 2. User Page -->
+  <div id="pageUser" class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 hidden">
+    <div class="flex justify-between items-center mb-4 border-b pb-4">
+      <div><h3 class="font-bold text-lg text-gray-800" id="uName">Name</h3><p class="text-sm text-gray-500">รหัส: <span id="uId">ID</span></p></div>
+      <button onclick="logout()" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-md">ออกจากระบบ</button>
+    </div>
+    
+    <div class="bg-blue-50 p-3 rounded-lg mb-4 text-center border border-blue-100 flex flex-col space-y-2">
+      <p id="gpsStatus" class="text-sm font-medium text-gray-600 bg-white p-2 rounded shadow-sm">📍 กำลังค้นหาพิกัด GPS...</p>
+      <p id="faceStatus" class="text-sm font-medium text-gray-600 bg-white p-2 rounded shadow-sm">👤 กำลังค้นหาใบหน้า...</p>
+      <p id="logoutTimerDisplay" class="text-xs font-bold text-rose-500 hidden">⏳ บังคับออกจากระบบใน: <span id="logoutCountdown">120</span> วินาที</p>
+      <p id="faceTimerDisplay" class="text-xs font-bold text-orange-500 hidden">⚠️ ยืนยันหน้าหมดอายุใน: <span id="faceCountdown">30</span> วินาที</p>
+    </div>
+    
+    <div class="mb-4 relative bg-black rounded-xl overflow-hidden h-80 flex items-center justify-center border-4 border-gray-100 shadow-inner">
+      <video id="video" autoplay playsinline class="absolute inset-0 w-full h-full object-cover transform scale-x-[-1]"></video>
+    </div>
+    
+    <div class="grid grid-cols-2 gap-4">
+      <button id="btnIn" onclick="record('เข้างาน')" disabled class="bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold shadow-lg transition">เข้างาน</button>
+      <button id="btnOut" onclick="record('ออกงาน')" disabled class="bg-rose-500 hover:bg-rose-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold shadow-lg transition">ออกงาน</button>
+    </div>
+  </div>
+
+  <!-- 3. Admin Page -->
+  <div id="pageAdmin" class="w-full max-w-6xl bg-white rounded-2xl shadow-xl p-6 hidden">
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6 border-b pb-4">
+      <h2 class="text-2xl font-bold text-gray-800">แผงควบคุม (Admin)</h2>
+      <button onclick="logout()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium mt-4 sm:mt-0">ออกจากระบบ</button>
+    </div>
+    <div class="flex space-x-2 border-b mb-6 overflow-x-auto">
+      <button onclick="adminTab('tabReport')" id="btnTabReport" class="admin-tab px-4 py-2 text-indigo-600 border-b-2 border-indigo-600 font-bold whitespace-nowrap">รายงาน</button>
+      <button onclick="adminTab('tabUsers')" id="btnTabUsers" class="admin-tab px-4 py-2 text-gray-500 font-bold whitespace-nowrap">พนักงาน</button>
+      <button onclick="adminTab('tabSettings')" id="btnTabSettings" class="admin-tab px-4 py-2 text-gray-500 font-bold whitespace-nowrap">พิกัดสาขา</button>
+    </div>
+
+    <!-- Tab 1: Reports -->
+    <div id="tabReport" class="tab-content">
+      <div class="flex flex-wrap items-end gap-3 mb-4 bg-gray-50 p-4 rounded-xl border">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">วันที่เริ่มต้น</label><input type="text" id="filterStart" placeholder="วว/ดด/ปปปป" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[130px]"></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">วันที่สิ้นสุด</label><input type="text" id="filterEnd" placeholder="วว/ดด/ปปปป" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[130px]"></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">พนักงาน</label><select id="filterEmp" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[150px]"><option value="all">ทั้งหมดทุกคน</option></select></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">สาขา</label><select id="filterBranch" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[150px]"><option value="all">รวมทุกสาขา</option></select></div>
+        
+        <div class="w-full flex flex-wrap gap-2 mt-2 border-b pb-4 border-gray-200">
+          <button onclick="loadReports()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition flex-1 sm:flex-none shadow">🔍 ค้นหา</button>
+          <button onclick="exportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition flex-1 sm:flex-none shadow">📥 ดาวน์โหลด Excel</button>
+          <button onclick="promptDeletePhotos()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition sm:ml-auto flex-1 sm:flex-none shadow">🗑️️ ลบรูปเก่า</button>
+        </div>
+
+        <!-- ส่วนจัดการฐานข้อมูล สำหรับแอดมิน -->
+        <div class="w-full flex flex-wrap gap-2 mt-2 items-center bg-rose-50 p-3 rounded-lg border border-rose-200">
+            <span class="font-bold text-rose-700 mr-2 text-sm">⚙️ จัดการพื้นที่ฐานข้อมูล:</span>
+            <button onclick="promptBackupData()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow text-sm">💾 ดึงข้อมูลสร้างไฟล์ Backup ใหม่</button>
+            <button onclick="promptDeleteData()" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-medium shadow text-sm">🗑️ เคลียร์ข้อมูลการเข้างานในตาราง</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto rounded-lg border">
+        <table class="w-full text-sm text-left text-gray-600">
+          <thead class="bg-gray-100 text-gray-700 uppercase text-xs font-bold border-b">
+            <tr>
+              <th class="px-4 py-3">วันที่</th><th class="px-4 py-3">รหัส</th><th class="px-4 py-3">ชื่อ-นามสกุล</th>
+              <th class="px-4 py-3">เวลาเข้า</th><th class="px-4 py-3 text-center">ยืนยัน (เข้า)</th><th class="px-4 py-3">เวลาออก</th><th class="px-4 py-3 text-center">ยืนยัน (ออก)</th><th class="px-4 py-3">สาขา</th><th class="px-4 py-3">ระยะทาง</th>
+            </tr>
+          </thead>
+          <tbody id="reportTableBody" class="divide-y"><tr><td colspan="9" class="px-4 py-6 text-center text-gray-400">กดค้นหาเพื่อดูข้อมูล</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 2: Users -->
+    <div id="tabUsers" class="tab-content hidden">
+      <div class="bg-blue-50 p-6 rounded-xl border border-blue-100 mb-6">
+        <h4 class="font-bold text-indigo-800 mb-4 flex items-center">➕ ลงทะเบียนพนักงาน (พร้อมสแกนใบหน้า)</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+          <div class="space-y-3 bg-white p-4 rounded-lg shadow-sm">
+            <input type="text" id="addU" placeholder="Username" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
+            <input type="text" id="addP" placeholder="Password" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
+            <input type="text" id="addId" placeholder="รหัสพนักงาน" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
+            <input type="text" id="addName" placeholder="ชื่อ-สกุล" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
+          </div>
+          <div class="flex flex-col items-center justify-center bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <video id="adminVideo" autoplay playsinline class="w-48 h-48 bg-black rounded-full object-cover mb-4 transform scale-x-[-1] border-4 border-indigo-100"></video>
+            <div class="flex space-x-2 w-full max-w-[250px]">
+                <button onclick="startAdminCamera()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-2 py-2 rounded-lg text-xs font-bold transition">1. เปิดกล้อง</button>
+                <button onclick="scanAdminFace()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-2 rounded-lg text-xs font-bold transition shadow-md">2. สแกนจำใบหน้า</button>
+            </div>
+            <p id="adminFaceStatus" class="text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200">❌ ยังไม่มีข้อมูลใบหน้า</p>
+          </div>
+        </div>
+        <button onclick="manageU('add')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-lg shadow-lg transition">✅ บันทึกพนักงานเข้าระบบ</button>
+      </div>
+      <div class="overflow-x-auto rounded-lg border"><table class="w-full text-sm text-left text-gray-600"><thead class="bg-gray-100 text-gray-700 uppercase text-xs font-bold border-b"><tr><th class="px-4 py-3">Username</th><th class="px-4 py-3">รหัสพนักงาน</th><th class="px-4 py-3">ชื่อ-นามสกุล</th><th class="px-4 py-3 text-center">จัดการ</th></tr></thead><tbody id="userTableBody" class="divide-y"></tbody></table></div>
+    </div>
+    
+    <!-- Tab 3: Branches -->
+    <div id="tabSettings" class="tab-content hidden">
+      <div class="bg-gray-50 p-4 rounded-xl border mb-6">
+        <h4 class="font-bold text-gray-800 mb-4 flex items-center">📍 เพิ่มพิกัดสาขาใหม่</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mb-2">
+          <input type="text" id="addBName" placeholder="ชื่อสาขา/สถานที่" class="border p-2 rounded-lg outline-none"><input type="text" id="addBLat" placeholder="Lat (ละติจูด)" class="border p-2 rounded-lg outline-none"><input type="text" id="addBLng" placeholder="Lng (ลองจิจูด)" class="border p-2 rounded-lg outline-none"><input type="number" id="addBRad" placeholder="รัศมี (เมตร)" class="border p-2 rounded-lg outline-none"><button onclick="manageBranch('add')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium">บันทึกสาขา</button>
+        </div>
+        <button onclick="getAdminCurrentGPS()" class="text-blue-600 text-sm font-medium hover:underline">🎯 ดึงพิกัดปัจจุบันของฉันมาใส่ช่อง Lat/Lng</button>
+      </div>
+      <div class="overflow-x-auto rounded-lg border"><table class="w-full text-sm text-left text-gray-600"><thead class="bg-gray-100 text-gray-700 uppercase text-xs font-bold border-b"><tr><th class="px-4 py-3">ชื่อสาขา</th><th class="px-4 py-3">Latitude</th><th class="px-4 py-3">Longitude</th><th class="px-4 py-3">รัศมี (m)</th><th class="px-4 py-3 text-center">จัดการ</th></tr></thead><tbody id="branchTableBody" class="divide-y"></tbody></table></div>
+    </div>
+  </div>
+
+  <script>
+    // ========================================================
+    var GAS_URL = "https://script.google.com/macros/s/AKfycbwoICiYNKjVfWyX9qZx3E9-be_FWiXGvvMMNd20gwWl4r7abthSQOk8XGnPTt0TgjWV/exec";
+    // ========================================================
+
+    document.addEventListener("DOMContentLoaded", function() {
+      flatpickr("#filterStart", { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", locale: "th" });
+      flatpickr("#filterEnd", { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", locale: "th" });
+      
+      var MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+      Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+      ]).then(function() {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('pageLogin').classList.remove('hidden');
+      }).catch(function(e) {
+        alert("โหลด AI ไม่สำเร็จ กรุณาเช็คอินเทอร์เน็ต: " + e.message);
+      });
+    });
+
+    var user = null, branches = [], allUsers = [], curLat = 0, curLng = 0, curDist = 0, currentBranchName = '';
+    var videoStream = null, adminVideoStream = null;
+    var isGpsOk = false, isFaceOk = false;
+    var faceScanInterval = null;
+    var tempFaceDescriptor = null;
+
+    var idleTimeout = null;
+    var faceExpiryTimeout = null;
+    var faceCountdownInterval = null;
+    var logoutCountdownInterval = null;
+    var IDLE_TIME_LIMIT = 120; 
+    var FACE_EXPIRY_LIMIT = 30; 
+
+    function loading(show, text) {
+      if(text) document.getElementById('loadingText').innerText = text;
+      document.getElementById('loading').style.display = show ? 'flex' : 'none';
+    }
+    
+    function switchPage(id) {
+      var pages = ['pageLogin', 'pageUser', 'pageAdmin'];
+      for(var i = 0; i < pages.length; i++) {
+        document.getElementById(pages[i]).classList.add('hidden');
+      }
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function callAPI(payload) {
+      return fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) })
+        .then(function(response) { return response.json(); });
+    }
+
+    function login() {
+      var u = document.getElementById('logUser').value;
+      var p = document.getElementById('logPass').value;
+      if(!u || !p) return alert('กรอกข้อมูลให้ครบ');
+      loading(true, 'ตรวจสอบข้อมูล...');
+      
+      callAPI({ action: 'checkLogin', u: u, p: p }).then(function(res) {
+        loading(false);
+        if(!res.success) return alert(res.message);
+        user = res;
+        
+        if(res.role === 'admin') { 
+            switchPage('pageAdmin'); 
+            loadAdminData(); 
+        } else { 
+            switchPage('pageUser'); 
+            document.getElementById('uName').innerText = user.empName; 
+            document.getElementById('uId').innerText = user.empId; 
+            startCamera(); 
+            loadUserBranches(); 
+            startFaceVerification(); 
+            startIdleTimer(); 
+        }
+      }).catch(function(err) {
+        loading(false); 
+        alert('เชื่อมต่อล้มเหลว: ' + err.message);
+      });
+    }
+
+    function logout(reason) { 
+      if (reason) alert(reason);
+      
+      clearAllTimers();
+      user = null; isGpsOk = false; isFaceOk = false;
+      if(videoStream) { videoStream.getTracks().forEach(function(t) { t.stop(); }); }
+      if(adminVideoStream) { adminVideoStream.getTracks().forEach(function(t) { t.stop(); }); }
+      if(faceScanInterval) clearInterval(faceScanInterval);
+      
+      document.getElementById('logoutTimerDisplay').classList.add('hidden');
+      document.getElementById('faceTimerDisplay').classList.add('hidden');
+      document.getElementById('btnIn').disabled = true;
+      document.getElementById('btnOut').disabled = true;
+
+      switchPage('pageLogin'); 
+      document.getElementById('logUser').value = ''; 
+      document.getElementById('logPass').value = '';
+    }
+
+    function clearAllTimers() {
+      if (idleTimeout) clearTimeout(idleTimeout);
+      if (faceExpiryTimeout) clearTimeout(faceExpiryTimeout);
+      if (faceCountdownInterval) {
+          clearInterval(faceCountdownInterval);
+          faceCountdownInterval = null;
+      }
+      if (logoutCountdownInterval) {
+          clearInterval(logoutCountdownInterval);
+          logoutCountdownInterval = null;
+      }
+    }
+
+    function startIdleTimer() {
+        clearAllTimers();
+        var timeLeft = IDLE_TIME_LIMIT;
+        document.getElementById('logoutTimerDisplay').classList.remove('hidden');
+        document.getElementById('logoutCountdown').innerText = timeLeft;
+
+        logoutCountdownInterval = setInterval(function() {
+            timeLeft--;
+            document.getElementById('logoutCountdown').innerText = timeLeft;
+            if (timeLeft <= 0) {
+                logout('หมดเวลาการใช้งาน (2 นาที) ระบบบังคับออกจากระบบเพื่อความปลอดภัย');
+            }
+        }, 1000);
+    }
+
+    function startFaceExpiryTimer() {
+        if (faceCountdownInterval) {
+            clearInterval(faceCountdownInterval);
+            faceCountdownInterval = null;
+        }
+        
+        var timeLeft = FACE_EXPIRY_LIMIT;
+        var displayEl = document.getElementById('faceTimerDisplay');
+        var countdownEl = document.getElementById('faceCountdown');
+        
+        displayEl.classList.remove('hidden');
+        countdownEl.innerText = timeLeft;
+
+        faceCountdownInterval = setInterval(function() {
+            timeLeft--;
+            countdownEl.innerText = timeLeft;
+            
+            if (timeLeft <= 0) {
+                clearInterval(faceCountdownInterval);
+                faceCountdownInterval = null;
+                displayEl.classList.add('hidden');
+                
+                isFaceOk = false;
+                checkEnableButtons();
+                alert('⏳ หมดเวลาบันทึกข้อมูล (30 วินาที) กรุณาสแกนใบหน้าใหม่อีกครั้ง');
+                startFaceVerification(); 
+            }
+        }, 1000);
+    }
+
+    function resetTimers() {
+        if (user && user.role === 'user') {
+            if (logoutCountdownInterval) {
+                clearInterval(logoutCountdownInterval);
+            }
+            startIdleTimer();
+        }
+    }
+    
+    document.addEventListener('mousemove', resetTimers);
+    document.addEventListener('keypress', resetTimers);
+    document.addEventListener('touchstart', resetTimers);
+
+    function startFaceVerification() {
+      var video = document.getElementById('video');
+      var statusEl = document.getElementById('faceStatus');
+      isFaceOk = false;
+      checkEnableButtons();
+      
+      if (faceScanInterval) {
+          clearInterval(faceScanInterval);
+          faceScanInterval = null;
+      }
+      if (faceCountdownInterval) {
+          clearInterval(faceCountdownInterval);
+          faceCountdownInterval = null;
+          document.getElementById('faceTimerDisplay').classList.add('hidden');
+      }
+      
+      if(!user.faceData || user.faceData === "") {
+          statusEl.innerHTML = '<span class="text-rose-600 font-bold bg-rose-100 px-2 py-1 rounded">❌ ไม่มีข้อมูลใบหน้า (ติดต่อแอดมิน)</span>';
+          return;
+      }
+      
+      var savedDescriptor = new Float32Array(JSON.parse(user.faceData));
+      statusEl.innerHTML = '<span class="text-orange-500 font-bold animate-pulse">👤 มองกล้องเพื่อยืนยันตัวตน...</span>';
+      
+      faceScanInterval = setInterval(function() {
+          if(!video.videoWidth) return;
+          faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor().then(function(detection) {
+              if(detection) {
+                  var distance = faceapi.euclideanDistance(savedDescriptor, detection.descriptor);
+                  if(distance <= 0.45) { 
+                      isFaceOk = true;
+                      statusEl.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">✅ ยืนยันตัวตนผ่าน! (AI)</span>';
+                      checkEnableButtons(); 
+                      
+                      clearInterval(faceScanInterval); 
+                      faceScanInterval = null;
+                      startFaceExpiryTimer(); 
+                  }
+              }
+          }).catch(function(e){});
+      }, 1000); 
+    }
+
+    function checkEnableButtons() {
+       if (isGpsOk && isFaceOk) {
+           document.getElementById('btnIn').disabled = false;
+           document.getElementById('btnOut').disabled = false;
+       } else {
+           document.getElementById('btnIn').disabled = true;
+           document.getElementById('btnOut').disabled = true;
+       }
+    }
+
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).then(function(stream) {
+        videoStream = stream;
+        document.getElementById('video').srcObject = stream;
+      }).catch(function(e) { alert('เปิดกล้องไม่ได้: ' + e.message); });
+    }
+
+    function startAdminCamera() {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).then(function(stream) {
+        adminVideoStream = stream;
+        document.getElementById('adminVideo').srcObject = stream;
+      }).catch(function(e) { alert('เปิดกล้องไม่ได้: ' + e.message); });
+    }
+
+    function scanAdminFace() {
+        var video = document.getElementById('adminVideo');
+        if(!video.videoWidth) return alert('กรุณากดเปิดกล้องก่อนครับ');
+        loading(true, 'แปลงใบหน้าเป็นรหัส Vector...');
+        
+        faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor().then(function(detection) {
+            loading(false);
+            if(detection) {
+                tempFaceDescriptor = Array.from(detection.descriptor); 
+                var statusEl = document.getElementById('adminFaceStatus');
+                statusEl.innerText = '✅ สแกนข้อมูลใบหน้าสำเร็จ';
+                statusEl.className = 'text-xs text-emerald-600 mt-3 font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200';
+            } else {
+                alert('❌ มองไม่เห็นใบหน้า กรุณามองกล้องในที่สว่างครับ');
+            }
+        }).catch(function(e) {
+            loading(false);
+            alert('เกิดข้อผิดพลาดในการสแกน');
+        });
+    }
+
+    function loadUserBranches() {
+      callAPI({ action: 'getBranches' }).then(function(res) {
+        branches = res;
+        watchGPS();
+      }).catch(function(e) { console.log(e); });
+    }
+
+    function watchGPS() {
+      if(!navigator.geolocation) return document.getElementById('gpsStatus').innerHTML = '<span class="text-red-500">เบราว์เซอร์ไม่รองรับ GPS</span>';
+      navigator.geolocation.watchPosition(function(pos) {
+        curLat = pos.coords.latitude; 
+        curLng = pos.coords.longitude;
+        if(branches.length === 0) return document.getElementById('gpsStatus').innerHTML = '<span class="text-red-500">ยังไม่มีการตั้งค่าสาขา</span>';
+        var nearest = null, minDist = Infinity;
+        for(var i = 0; i < branches.length; i++) {
+          var b = branches[i];
+          var d = calcDist(curLat, curLng, b.lat, b.lng);
+          if(d < minDist) { minDist = d; nearest = b; }
+        }
+        curDist = minDist;
+        isGpsOk = (minDist <= nearest.radius);
+        currentBranchName = nearest.name;
+        var status = document.getElementById('gpsStatus');
+        if(isGpsOk) status.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">📍 GPS ผ่าน: ' + nearest.name + '</span>';
+        else status.innerHTML = '<span class="text-rose-600 font-bold bg-rose-100 px-2 py-1 rounded">❌ GPS นอกพิกัด (' + Math.floor(minDist) + 'm)</span>';
+        checkEnableButtons(); 
+      }, function(err) {}, { enableHighAccuracy: true });
+    }
+
+    function calcDist(lat1, lon1, lat2, lon2) {
+      var p = 0.017453292519943295, c = Math.cos;
+      var a = 0.5 - c((lat2 - lat1) * p)/2 + c(lat1 * p) * c(lat2 * p) * (1 - c((lon2 - lon1) * p))/2;
+      return 12742000 * Math.asin(Math.sqrt(a));
+    }
+
+    function record(type) {
+      if(!isGpsOk || !isFaceOk) return alert('เงื่อนไขยังไม่ครบถ้วน');
+      if(!confirm('ยืนยันการลงเวลา "' + type + '" ที่สาขา "' + currentBranchName + '"?')) return;
+      
+      clearAllTimers(); 
+      loading(true, 'กำลังบันทึกข้อมูล...');
+      
+      var payload = { 
+          empId: user.empId, 
+          empName: user.empName, 
+          type: type, 
+          branchName: currentBranchName, 
+          lat: curLat, 
+          lng: curLng, 
+          distance: Math.floor(curDist)
+      };
+      
+      callAPI({ action: 'saveRecordWithPhoto', payload: payload }).then(function(res) {
+        loading(false); 
+        if(res.success) {
+            logout('✅ ' + res.message + '\nระบบจะออกจากระบบอัตโนมัติเพื่อความปลอดภัย');
+        } else {
+            alert(res.message);
+            startIdleTimer(); 
+            startFaceVerification();
+        }
+      }).catch(function(err) {
+          loading(false); 
+          alert('ผิดพลาด: ' + err.message); 
+          startIdleTimer();
+          startFaceVerification();
+      });
+    }
+
+    function adminTab(id) {
+      var contents = document.querySelectorAll('.tab-content');
+      for(var i = 0; i < contents.length; i++) { contents[i].classList.add('hidden'); }
+      var tabs = document.querySelectorAll('.admin-tab');
+      for(var j = 0; j < tabs.length; j++) { 
+          tabs[j].classList.remove('text-indigo-600','border-b-2','border-indigo-600'); 
+          tabs[j].classList.add('text-gray-500'); 
+      }
+      document.getElementById(id).classList.remove('hidden');
+      var btnId = id === 'tabReport' ? 'btnTabReport' : id === 'tabUsers' ? 'btnTabUsers' : 'btnTabSettings';
+      document.getElementById(btnId).classList.remove('text-gray-500'); 
+      document.getElementById(btnId).classList.add('text-indigo-600','border-b-2','border-indigo-600');
+    }
+
+    function loadAdminData() {
+      loading(true, 'กำลังเตรียมข้อมูล...');
+      callAPI({ action: 'getAdminInitData' }).then(function(res) {
+        loading(false);
+        var users = res.users;
+        var brs = res.branches;
+        allUsers = users; 
+        
+        var selEmp = document.getElementById('filterEmp'); 
+        selEmp.innerHTML = '<option value="all">ทั้งหมดทุกคน</option>';
+        for(var i = 0; i < users.length; i++) {
+          selEmp.innerHTML += '<option value="' + users[i].empId + '">' + users[i].empName + '</option>';
+        }
+        
+        var selBr = document.getElementById('filterBranch'); 
+        selBr.innerHTML = '<option value="all">รวมทุกสาขา</option>';
+        for(var j = 0; j < brs.length; j++) {
+          selBr.innerHTML += '<option value="' + brs[j].name + '">' + brs[j].name + '</option>';
+        }
+        
+        renderUsers(users); 
+        renderBranches(brs);
+      }).catch(function(e) {
+        loading(false);
+        console.error(e);
+      });
+    }
+
+    var reportData = [];
+
+    function loadReports() {
+      loading(true, 'ค้นหาข้อมูล...');
+      var s = document.getElementById('filterStart').value; 
+      var e = document.getElementById('filterEnd').value;
+      var emp = document.getElementById('filterEmp').value;
+      var br = document.getElementById('filterBranch').value;
+      
+      callAPI({ action: 'getReports', s: s, e: e, emp: emp, branch: br }).then(function(res) {
+        loading(false);
+        reportData = res;
+        var tb = document.getElementById('reportTableBody'); 
+        tb.innerHTML = '';
+        if(res.length === 0) {
+          tb.innerHTML = '<tr><td colspan="9" class="px-4 py-6 text-center text-gray-500">ไม่พบข้อมูล</td></tr>';
+        } else {
+          for(var i = 0; i < res.length; i++) {
+            var r = res[i];
+            var inBadge = r.timeIn ? '<span class="text-emerald-600 font-bold">' + r.timeIn + '</span>' : '-';
+            var outBadge = r.timeOut ? '<span class="text-rose-600 font-bold">' + r.timeOut + '</span>' : '-';
+            var htmlIn = r.photoIn ? '<span class="text-emerald-600 text-xs font-bold">' + r.photoIn + '</span>' : '-';
+            var htmlOut = r.photoOut ? '<span class="text-emerald-600 text-xs font-bold">' + r.photoOut + '</span>' : '-';
+
+            tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'>" +
+              "<td class='px-4 py-3 whitespace-nowrap'>" + r.date + "</td>" +
+              "<td class='px-4 py-3'>" + r.empId + "</td>" +
+              "<td class='px-4 py-3 font-medium'>" + r.empName + "</td>" +
+              "<td class='px-4 py-3'>" + inBadge + "</td>" +
+              "<td class='px-4 py-3 text-center'>" + htmlIn + "</td>" +
+              "<td class='px-4 py-3'>" + outBadge + "</td>" +
+              "<td class='px-4 py-3 text-center'>" + htmlOut + "</td>" +
+              "<td class='px-4 py-3 text-indigo-600 font-medium'>" + (r.branch || "-") + "</td>" +
+              "<td class='px-4 py-3'>" + r.distance + "</td>" +
+            "</tr>";
+          }
+        }
+      }).catch(function(err) {
+        loading(false);
+        alert('ผิดพลาด: ' + err.message);
+      });
+    }
+
+    function getDatesInRange(startDateStr, endDateStr) {
+      var dates = [];
+      var currentDate = new Date(startDateStr);
+      var end = new Date(endDateStr);
+      while (currentDate <= end) {
+        var d = currentDate.getDate().toString().padStart(2, '0');
+        var m = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+        var y = currentDate.getFullYear();
+        dates.push(d + '/' + m + '/' + y);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      return dates;
+    }
+
+    function exportExcel() {
+      var s = document.getElementById('filterStart').value;
+      var e = document.getElementById('filterEnd').value;
+      if(!s || !e) return alert('กรุณาเลือก "วันที่เริ่มต้น" และ "วันที่สิ้นสุด" ก่อนดาวน์โหลด Excel ครับ');
+      if(reportData.length === 0) return alert('ไม่มีข้อมูลสำหรับดาวน์โหลด');
+      
+      loading(true, 'กำลังสร้างไฟล์ Excel...');
+      
+      var workbook = new ExcelJS.Workbook();
+      var dateRangeArray = getDatesInRange(s, e);
+      var dataByEmpId = {};
+      for(var i = 0; i < reportData.length; i++) {
+        var r = reportData[i];
+        if(!dataByEmpId[r.empId]) dataByEmpId[r.empId] = [];
+        dataByEmpId[r.empId].push(r);
+      }
+
+      var employeesToExport = [];
+      var filterEmpId = document.getElementById('filterEmp').value;
+      if (filterEmpId === 'all') {
+        employeesToExport = allUsers; 
+      } else {
+        for(var k = 0; k < allUsers.length; k++) {
+          if(allUsers[k].empId.toString() === filterEmpId.toString()) {
+            employeesToExport.push(allUsers[k]);
+          }
+        }
+      }
+
+      for (var x = 0; x < employeesToExport.length; x++) {
+        var emp = employeesToExport[x];
+        var name = emp.empName || "Unknown";
+        name = name.substring(0, 31); 
+        var sheet = workbook.addWorksheet(name);
+        
+        sheet.columns = [
+          { header: 'วันที่', key: 'date', width: 15 },
+          { header: 'รหัสพนักงาน', key: 'empId', width: 15 },
+          { header: 'ชื่อ-นามสกุล', key: 'empName', width: 25 },
+          { header: 'เวลาเข้างาน', key: 'timeIn', width: 15 },
+          { header: 'เวลาออกงาน', key: 'timeOut', width: 15 },
+          { header: 'สาขา', key: 'branch', width: 25 },
+          { header: 'ระยะทาง', key: 'distance', width: 15 },
+          { header: 'ยืนยันใบหน้า (เข้า)', key: 'photoIn', width: 25 },
+          { header: 'ยืนยันใบหน้า (ออก)', key: 'photoOut', width: 25 }
+        ];
+
+        sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+
+        var empRecords = dataByEmpId[emp.empId] || [];
+
+        for(var y = 0; y < dateRangeArray.length; y++) {
+           var dateStr = dateRangeArray[y];
+           var recordsForThisDate = [];
+           for(var z = 0; z < empRecords.length; z++) {
+             if(empRecords[z].date === dateStr) recordsForThisDate.push(empRecords[z]);
+           }
+           
+           if (recordsForThisDate.length > 0) {
+               for(var w = 0; w < recordsForThisDate.length; w++) {
+                   var rec = recordsForThisDate[w];
+                   sheet.addRow({
+                    date: rec.date, empId: rec.empId, empName: rec.empName,
+                    timeIn: rec.timeIn, timeOut: rec.timeOut, branch: rec.branch, distance: rec.distance,
+                    photoIn: rec.photoIn, photoOut: rec.photoOut 
+                  });
+               }
+           } else {
+               sheet.addRow({ date: dateStr, empId: emp.empId, empName: emp.empName, timeIn: '', timeOut: '', branch: '', distance: '', photoIn: '', photoOut: '' });
+           }
+        }
+      }
+      
+      workbook.xlsx.writeBuffer().then(function(buffer) {
+        loading(false);
+        var blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = "รายงานลงเวลา_" + s.replace(/\//g, "-") + "_ถึง_" + e.replace(/\//g, "-") + ".xlsx"; 
+        link.click();
+      }).catch(function(e) {
+        loading(false);
+        console.error(e);
+        alert('เกิดข้อผิดพลาดในการสร้างไฟล์ Excel');
+      });
+    }
+
+    function promptDeletePhotos() {
+      var s = document.getElementById('filterStart').value; 
+      var e = document.getElementById('filterEnd').value;
+      if (!s && !e) return alert('⚠️ กรุณาเลือกวันที่เริ่มต้น หรือ วันที่สิ้นสุด');
+      if(!confirm('ยืนยันการเคลียร์สถานะรูปภาพใช่หรือไม่?')) return;
+      loading(true, 'กำลังดำเนินการ...');
+      
+      callAPI({ action: 'deletePhotos', s: s, e: e }).then(function(res) {
+        loading(false);
+        alert(res.message); 
+        loadReports(); 
+      }).catch(function(err) {
+        loading(false);
+      });
+    }
+
+    function promptBackupData() {
+        var s = document.getElementById('filterStart').value; 
+        var e = document.getElementById('filterEnd').value;
+        var msg = 'ยืนยันการดึงข้อมูลเพื่อสร้าง Google Sheet ไฟล์ใหม่ (Backup) ใช่หรือไม่?\n\n' + (s && e ? 'ตามช่วงเวลา: ' + s + ' ถึง ' + e : '👉 สร้าง Backup ข้อมูลทั้งหมดทุกช่วงเวลา');
+        
+        if(!confirm(msg)) return;
+        loading(true, 'กำลังสร้างไฟล์ Backup โปรดรอสักครู่...');
+        
+        callAPI({ action: 'backupData', s: s, e: e }).then(function(res) {
+            loading(false);
+            if(res.success) {
+                alert('✅ ' + res.message + '\n\nระบบกำลังจะเปิดไฟล์ Backup ใหม่ให้ครับ');
+                window.open(res.url, '_blank');
+            } else {
+                alert('❌ ' + res.message);
+            }
+        }).catch(function(e) {
+            loading(false);
+        });
+    }
+
+    function promptDeleteData() {
+        var s = document.getElementById('filterStart').value; 
+        var e = document.getElementById('filterEnd').value;
+        var msg = '🚨 คำเตือน! ยืนยันการ "ลบข้อมูลการลงเวลา" ออกจากระบบ ใช่หรือไม่?\n\n' + (s && e ? 'ช่วงเวลาที่จะถูกลบทิ้ง: ' + s + ' ถึง ' + e : '🔥 ระบบจะลบข้อมูล "ทั้งหมด" ทุกช่วงเวลาออกไป! 🔥') + '\n\n(คำแนะนำ: ควรทำการ Backup ข้อมูลก่อนลบเสมอ)';
+        
+        if(!confirm(msg)) return;
+        if(!s && !e && !confirm('ย้ำอีกครั้ง! คุณกำลังจะล้างข้อมูลการลงเวลาทั้งหมดออกไปจริงๆ แน่ใจหรือไม่?')) return;
+        
+        loading(true, 'กำลังลบข้อมูลออกจากตาราง...');
+        
+        callAPI({ action: 'deleteData', s: s, e: e }).then(function(res) {
+            loading(false);
+            alert('✅ ' + res.message);
+            loadReports(); 
+        }).catch(function(e) {
+            loading(false);
+        });
+    }
+
+    function renderUsers(users) {
+      var tb = document.getElementById('userTableBody'); 
+      tb.innerHTML = '';
+      if(!Array.isArray(users) || users.length === 0) return tb.innerHTML = '<tr><td colspan="4" class="text-center py-4">ไม่มีข้อมูล</td></tr>';
+      for(var i = 0; i < users.length; i++) {
+          var r = users[i];
+          tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'><td class='px-4 py-3'>" + r.username + "</td><td class='px-4 py-3'>" + r.empId + "</td><td class='px-4 py-3'>" + r.empName + "</td><td class='px-4 py-3 text-center'><button onclick=\"manageU('delete', '" + r.username + "')\" class='text-rose-500 px-3 py-1 rounded'>ลบ</button></td></tr>"; 
+      }
+    }
+
+    function manageU(action, uName) {
+      var data = { username: uName };
+      if(action === 'add') {
+        if(!tempFaceDescriptor) return alert('กรุณาสแกนใบหน้าพนักงานก่อนบันทึกเข้าระบบครับ!');
+        
+        data = { 
+            username: document.getElementById('addU').value, 
+            password: document.getElementById('addP').value, 
+            empId: document.getElementById('addId').value, 
+            empName: document.getElementById('addName').value,
+            faceData: JSON.stringify(tempFaceDescriptor)
+        };
+        if(!data.username || !data.password || !data.empId || !data.empName) return alert('กรอกข้อมูลให้ครบ');
+      }
+      if(action === 'delete' && !confirm('ยืนยันการลบพนักงาน ' + uName + ' ใช่หรือไม่?')) return;
+      
+      loading(true, 'กำลังบันทึก...');
+      callAPI({ action: 'manageUser', subAction: action, data: data }).then(function(res) {
+          loading(false);
+          alert(res.message); 
+          
+          if(action === 'add' && res.success) {
+              tempFaceDescriptor = null;
+              document.getElementById('addU').value = ''; 
+              document.getElementById('addP').value = ''; 
+              document.getElementById('addId').value = ''; 
+              document.getElementById('addName').value = '';
+              var statusEl = document.getElementById('adminFaceStatus');
+              statusEl.innerText = '❌ ยังไม่มีข้อมูลใบหน้า';
+              statusEl.className = 'text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200';
+          }
+          loadAdminData(); 
+      }).catch(function(err) {
+          loading(false);
+      });
+    }
+
+    function renderBranches(brs) {
+      var tb = document.getElementById('branchTableBody'); 
+      tb.innerHTML = '';
+      if(!Array.isArray(brs) || brs.length === 0) return tb.innerHTML = '<tr><td colspan="5" class="text-center py-4">ไม่มีข้อมูล</td></tr>';
+      for(var i = 0; i < brs.length; i++) {
+          var b = brs[i];
+          tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'><td class='px-4 py-3 font-medium text-indigo-600'>" + b.name + "</td><td class='px-4 py-3'>" + b.lat + "</td><td class='px-4 py-3'>" + b.lng + "</td><td class='px-4 py-3'>" + b.radius + "</td><td class='px-4 py-3 text-center'><button onclick=\"manageBranch('delete', '" + b.name + "')\" class='text-rose-500 px-3 py-1 rounded'>ลบ</button></td></tr>"; 
+      }
+    }
+
+    function manageBranch(action, bName) {
+      if(action === 'add') {
+        var n = document.getElementById('addBName').value;
+        var l = document.getElementById('addBLat').value;
+        var g = document.getElementById('addBLng').value;
+        var r = document.getElementById('addBRad').value;
+        if(!n || !l || !g || !r) return alert('กรอกข้อมูลสาขาให้ครบ');
+        
+        loading(true, 'เพิ่มสาขา...');
+        callAPI({ action: 'addBranch', name: n, lat: l, lng: g, rad: r }).then(function(res) {
+          loading(false);
+          alert(res.message); 
+          loadAdminData(); 
+        }).catch(function(e) {
+          loading(false);
+        });
+      } else if (action === 'delete') {
+        if(!confirm('ลบสาขา ' + bName + ' ใช่หรือไม่?')) return;
+        
+        loading(true, 'ลบสาขา...');
+        callAPI({ action: 'deleteBranch', name: bName }).then(function(res) {
+          loading(false);
+          alert(res.message); 
+          loadAdminData(); 
+        }).catch(function(e) {
+          loading(false);
+        });
+      }
+    }
+
+    function getAdminCurrentGPS() { 
+      navigator.geolocation.getCurrentPosition(function(pos) { 
+        document.getElementById('addBLat').value = pos.coords.latitude; 
+        document.getElementById('addBLng').value = pos.coords.longitude; 
+      }); 
+    }
+  </script>
+</body>
+</html>
