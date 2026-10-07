@@ -35,7 +35,10 @@
     .flatpickr-input[readonly] { background-color: #ffffff; }
   </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
+<body class="flex items-center justify-center min-h-screen p-4 relative">
+
+  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่าง -->
+  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.5</div>
 
   <!-- Loading -->
   <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
@@ -57,12 +60,12 @@
     </div>
   </div>
 
-  <!-- Success Modal (หน้าต่างแจ้งเตือนหลังบันทึกสำเร็จ พร้อมปุ่มเริ่มสแกนใหม่) -->
+  <!-- Success Modal (แจ้งเตือนสำเร็จ / หมดเวลา / ออกจากแอดมิน) -->
   <div id="successModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center space-y-4">
       <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">✓</div>
-      <h3 class="text-xl font-bold text-gray-800">บันทึกเวลาสำเร็จ!</h3>
-      <p id="successMessage" class="text-sm text-gray-500">ระบบได้ตัดการทำงานของกล้องและ GPS เรียบร้อยแล้ว</p>
+      <h3 class="text-xl font-bold text-gray-800" id="successTitle">การทำงานเสร็จสิ้น</h3>
+      <p id="successMessage" class="text-sm text-gray-500">ระบบได้ปิดกล้องและ GPS เรียบร้อยแล้ว</p>
       <button onclick="restartScanning()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition">
         🔄 เริ่มสแกนอีกครั้ง
       </button>
@@ -317,7 +320,6 @@
       }, 1000);
     }
 
-    // หยุดการทำงานของกล้องและ GPS ทันที
     function stopCameraAndGps() {
       if (continuousFaceInterval) { clearInterval(continuousFaceInterval); continuousFaceInterval = null; }
       if (videoStream) {
@@ -331,7 +333,6 @@
       clearAllTimers();
     }
 
-    // กดปุ่มเริ่มสแกนอีกครั้งเพื่อเปิดกล้องและ GPS ใหม่
     function restartScanning() {
       document.getElementById('successModal').classList.add('hidden');
       user = null; isFaceOk = false; isGpsOk = false;
@@ -361,6 +362,7 @@
         closeAdminLoginModal();
         document.getElementById('adminUser').value = '';
         document.getElementById('adminPass').value = '';
+        // หยุดกล้อง GPS และเคลียร์เวลาถอยหลังทั้งหมดทันทีเมื่อเข้าแอดมิน
         stopCameraAndGps();
         switchPage('pageAdmin'); 
         loadAdminData(); 
@@ -371,7 +373,9 @@
 
     function logoutAdmin() {
       switchPage('pageUser');
-      restartScanning();
+      document.getElementById('successTitle').innerText = 'ออกจากระบบแอดมินแล้ว';
+      document.getElementById('successMessage').innerText = 'ระบบได้เปิดการทำงานใหม่ กรุณากดปุ่มเพื่อเริ่มสแกน';
+      document.getElementById('successModal').classList.remove('hidden');
     }
 
     function clearAllTimers() {
@@ -392,7 +396,8 @@
             document.getElementById('logoutCountdown').innerText = timeLeft;
             if (timeLeft <= 0) {
                 stopCameraAndGps();
-                document.getElementById('successMessage').innerText = 'หมดเวลาการใช้งาน (2 นาที) ระบบได้ปิดกล้องและ GPS เพื่อความปลอดภัย';
+                document.getElementById('successTitle').innerText = 'หมดเวลาการใช้งาน';
+                document.getElementById('successMessage').innerText = 'ครบ 120 วินาที ระบบได้ปิดกล้องและ GPS เพื่อความปลอดภัย';
                 document.getElementById('successModal').classList.remove('hidden');
             }
         }, 1000);
@@ -597,8 +602,8 @@
         }
 
         loading(false);
-        // ปิดการทำงานกล้องและ GPS ทันทีหลังบันทึกสำเร็จ
         stopCameraAndGps();
+        document.getElementById('successTitle').innerText = 'บันทึกเวลาสำเร็จ!';
         document.getElementById('successMessage').innerText = 'บันทึกเวลา ' + type + ' (' + currentBranchName + ') เรียบร้อยแล้ว\nระบบได้ปิดกล้องและ GPS ให้แล้วครับ';
         document.getElementById('successModal').classList.remove('hidden');
       } catch (err) {
