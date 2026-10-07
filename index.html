@@ -450,10 +450,17 @@
 
     function watchGPS() {
       if(!navigator.geolocation) return document.getElementById('gpsStatus').innerHTML = '<span class="text-red-500">เบราว์เซอร์ไม่รองรับ GPS</span>';
+      
+      document.getElementById('gpsStatus').innerHTML = '<span class="text-blue-500 font-medium animate-pulse">📍 กำลังจับสัญญาณ GPS ให้มีความแม่นยำสูง...</span>';
+
+      // ใช้ watchPosition พร้อมตั้งค่าพารามิเตอร์บังคับความแม่นยำสูงสุดเพื่อแก้ปัญหา iOS/Android ไม่ตรงกัน
       navigator.geolocation.watchPosition(function(pos) {
         curLat = pos.coords.latitude; 
         curLng = pos.coords.longitude;
+        var accuracy = pos.coords.accuracy; // ค่าความคลาดเคลื่อนเป็นเมตร
+
         if(branches.length === 0) return document.getElementById('gpsStatus').innerHTML = '<span class="text-red-500">ยังไม่มีการตั้งค่าสาขา</span>';
+        
         var nearest = null, minDist = Infinity;
         for(var i = 0; i < branches.length; i++) {
           var b = branches[i];
@@ -461,13 +468,45 @@
           if(d < minDist) { minDist = d; nearest = b; }
         }
         curDist = minDist;
+        
+        // เช็คว่าระยะห่างอยู่ในรัศมีสาขาหรือไม่
         isGpsOk = (minDist <= nearest.radius);
         currentBranchName = nearest.name;
+        
         var status = document.getElementById('gpsStatus');
-        if(isGpsOk) status.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">📍 GPS ผ่าน: ' + nearest.name + '</span>';
-        else status.innerHTML = '<span class="text-rose-600 font-bold bg-rose-100 px-2 py-1 rounded">❌ GPS นอกพิกัด (' + Math.floor(minDist) + 'm)</span>';
+        if(isGpsOk) {
+          status.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">📍 GPS ผ่าน: ' + nearest.name + ' (' + Math.floor(minDist) + 'ม.)</span>';
+        } else {
+          status.innerHTML = '<span class="text-rose-600 font-bold bg-rose-100 px-2 py-1 rounded">❌ อยู่นอกพิกัดสาขา ' + nearest.name + ' (' + Math.floor(minDist) + 'ม., รัศมีที่ตั้งไว้ ' + nearest.radius + 'ม.)</span>';
+        }
         checkEnableButtons(); 
-      }, function(err) {}, { enableHighAccuracy: true });
+      }, function(err) {
+        var errMessage = "ไม่สามารถเข้าถึง GPS ได้";
+        if (err.code === 1) errMessage = "กรุณาอนุญาตให้เว็บไซต์เข้าถึงตำแหน่ง GPS (Permission Denied)";
+        else if (err.code === 2) errMessage = "ไม่สามารถระบุตำแหน่งได้ กรุณาเปิด GPS หรือย้ายที่อับสัญญาณ";
+        document.getElementById('gpsStatus').innerHTML = '<span class="text-rose-600 font-bold">❌ ' + errMessage + '</span>';
+      }, { 
+        enableHighAccuracy: true, // บังคับใช้ GPS ความแม่นยำสูง (แก้ปัญหาความต่างระหว่าง iOS / Android)
+        timeout: 15000,           // รอสัญญาณสูงสุด 15วินาที
+        maximumAge: 0             // ห้ามใช้ค่าพิกัดเก่าในแคช ต้องดึงสดใหม่เสมอ
+      });
+    }
+
+    function getAdminCurrentGPS() { 
+      loading(true, 'กำลังดึงพิกัดปัจจุบันด้วยความแม่นยำสูง...');
+      navigator.geolocation.getCurrentPosition(function(pos) { 
+        loading(false);
+        document.getElementById('addBLat').value = pos.coords.latitude; 
+        document.getElementById('addBLng').value = pos.coords.longitude; 
+        alert('🎯 ดึงพิกัดปัจจุบันสำเร็จ!');
+      }, function(err) {
+        loading(false);
+        alert('ไม่สามารถดึงพิกัดได้ กรุณาเปิด GPS และอนุญาตสิทธิ์การเข้าถึงตำแหน่ง');
+      }, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      });
     }
 
     function calcDist(lat1, lon1, lat2, lon2) {
@@ -893,12 +932,6 @@
       }
     }
 
-    function getAdminCurrentGPS() { 
-      navigator.geolocation.getCurrentPosition(function(pos) { 
-        document.getElementById('addBLat').value = pos.coords.latitude; 
-        document.getElementById('addBLng').value = pos.coords.longitude; 
-      }); 
-    }
   </script>
 </body>
 </html>
