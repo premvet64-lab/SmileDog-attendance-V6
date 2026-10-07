@@ -57,7 +57,19 @@
     </div>
   </div>
 
-  <!-- 1. User Page (หน้าหลักสแกนเข้า-ออกงานทันที) -->
+  <!-- Success Modal (หน้าต่างแจ้งเตือนหลังบันทึกสำเร็จ พร้อมปุ่มเริ่มสแกนใหม่) -->
+  <div id="successModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center space-y-4">
+      <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">✓</div>
+      <h3 class="text-xl font-bold text-gray-800">บันทึกเวลาสำเร็จ!</h3>
+      <p id="successMessage" class="text-sm text-gray-500">ระบบได้ตัดการทำงานของกล้องและ GPS เรียบร้อยแล้ว</p>
+      <button onclick="restartScanning()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition">
+        🔄 เริ่มสแกนอีกครั้ง
+      </button>
+    </div>
+  </div>
+
+  <!-- 1. User Page -->
   <div id="pageUser" class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
     <div class="flex justify-between items-center mb-4 border-b pb-4">
       <div><h3 class="font-bold text-lg text-gray-800" id="uName">กำลังสแกนใบหน้า...</h3><p class="text-sm text-gray-500">รหัสพนักงาน: <span id="uId">-</span></p></div>
@@ -225,6 +237,7 @@
     var videoStream = null, adminVideoStream = null;
     var isGpsOk = false, isFaceOk = false;
     var continuousFaceInterval = null;
+    var watchGpsId = null;
     var tempFaceDescriptor = null;
 
     var idleTimeout = null;
@@ -264,7 +277,6 @@
       }
     }
 
-    // เริ่มระบบสแกนหน้าต่อเนื่องที่หน้าหลักอัตโนมัติ
     function startContinuousFaceRecognition() {
       var video = document.getElementById('video');
       var statusEl = document.getElementById('faceStatus');
@@ -305,6 +317,36 @@
       }, 1000);
     }
 
+    // หยุดการทำงานของกล้องและ GPS ทันที
+    function stopCameraAndGps() {
+      if (continuousFaceInterval) { clearInterval(continuousFaceInterval); continuousFaceInterval = null; }
+      if (videoStream) {
+        videoStream.getTracks().forEach(function(t) { t.stop(); });
+        videoStream = null;
+      }
+      if (watchGpsId !== null) {
+        navigator.geolocation.clearWatch(watchGpsId);
+        watchGpsId = null;
+      }
+      clearAllTimers();
+    }
+
+    // กดปุ่มเริ่มสแกนอีกครั้งเพื่อเปิดกล้องและ GPS ใหม่
+    function restartScanning() {
+      document.getElementById('successModal').classList.add('hidden');
+      user = null; isFaceOk = false; isGpsOk = false;
+      document.getElementById('uName').innerText = 'กำลังสแกนใบหน้า...';
+      document.getElementById('uId').innerText = '-';
+      document.getElementById('faceStatus').innerHTML = '<span class="text-medium text-gray-600">👤 กำลังค้นหาใบหน้าพนักงาน...</span>';
+      document.getElementById('gpsStatus').innerHTML = '<span class="text-medium text-gray-600">📍 กำลังค้นหาพิกัด GPS...</span>';
+      checkEnableButtons();
+
+      startCamera();
+      loadUserBranches();
+      startContinuousFaceRecognition();
+      startIdleTimer();
+    }
+
     function openAdminLoginModal() {
       document.getElementById('adminModal').classList.remove('hidden');
     }
@@ -319,8 +361,7 @@
         closeAdminLoginModal();
         document.getElementById('adminUser').value = '';
         document.getElementById('adminPass').value = '';
-        if (continuousFaceInterval) { clearInterval(continuousFaceInterval); continuousFaceInterval = null; }
-        if (videoStream) { videoStream.getTracks().forEach(function(t) { t.stop(); }); }
+        stopCameraAndGps();
         switchPage('pageAdmin'); 
         loadAdminData(); 
       } else {
@@ -330,37 +371,7 @@
 
     function logoutAdmin() {
       switchPage('pageUser');
-      document.getElementById('uName').innerText = 'กำลังสแกนใบหน้า...';
-      document.getElementById('uId').innerText = '-';
-      user = null; isFaceOk = false;
-      checkEnableButtons();
-      startCamera();
-      preloadUsersForLogin().then(function() {
-        startContinuousFaceRecognition();
-      });
-    }
-
-    function resetAppToDefault(reason) { 
-      if (reason) alert(reason);
-      
-      clearAllTimers();
-      user = null; isGpsOk = false; isFaceOk = false;
-      if(videoStream) { videoStream.getTracks().forEach(function(t) { t.stop(); }); }
-      
-      document.getElementById('logoutTimerDisplay').classList.add('hidden');
-      document.getElementById('faceTimerDisplay').classList.add('hidden');
-      document.getElementById('btnIn').disabled = true;
-      document.getElementById('btnOut').disabled = true;
-      document.getElementById('uName').innerText = 'กำลังสแกนใบหน้า...';
-      document.getElementById('uId').innerText = '-';
-      document.getElementById('faceStatus').innerHTML = '<span class="text-medium text-gray-600">👤 กำลังค้นหาใบหน้าพนักงาน...</span>';
-
-      switchPage('pageUser'); 
-      startCamera();
-      preloadUsersForLogin().then(function() {
-        startContinuousFaceRecognition();
-        startIdleTimer();
-      });
+      restartScanning();
     }
 
     function clearAllTimers() {
@@ -380,7 +391,9 @@
             timeLeft--;
             document.getElementById('logoutCountdown').innerText = timeLeft;
             if (timeLeft <= 0) {
-                resetAppToDefault('หมดเวลาการใช้งาน (2 นาที) รีเซ็ตหน้าจอเพื่อความปลอดภัย');
+                stopCameraAndGps();
+                document.getElementById('successMessage').innerText = 'หมดเวลาการใช้งาน (2 นาที) ระบบได้ปิดกล้องและ GPS เพื่อความปลอดภัย';
+                document.getElementById('successModal').classList.remove('hidden');
             }
         }, 1000);
     }
@@ -484,7 +497,7 @@
     function watchGPS() {
       if(!navigator.geolocation) return document.getElementById('gpsStatus').innerHTML = '<span class="text-red-500">เบราว์เซอร์ไม่รองรับ GPS</span>';
       
-      navigator.geolocation.watchPosition(function(pos) {
+      watchGpsId = navigator.geolocation.watchPosition(function(pos) {
         curLat = pos.coords.latitude; 
         curLng = pos.coords.longitude;
         if(branches.length === 0) return document.getElementById('gpsStatus').innerHTML = '<span class="text-red-500">ยังไม่มีการตั้งค่าสาขา</span>';
@@ -524,7 +537,6 @@
       if(!isGpsOk || !isFaceOk) return alert('เงื่อนไขยังไม่ครบถ้วน');
       if(!confirm('ยืนยันการลงเวลา "' + type + '" ที่สาขา "' + currentBranchName + '"?')) return;
       
-      clearAllTimers(); 
       loading(true, 'กำลังบันทึกข้อมูล...');
       
       var now = new Date();
@@ -585,7 +597,10 @@
         }
 
         loading(false);
-        resetAppToDefault('✅ บันทึกเวลา ' + type + ' (' + currentBranchName + ') สำเร็จ! ⚡');
+        // ปิดการทำงานกล้องและ GPS ทันทีหลังบันทึกสำเร็จ
+        stopCameraAndGps();
+        document.getElementById('successMessage').innerText = 'บันทึกเวลา ' + type + ' (' + currentBranchName + ') เรียบร้อยแล้ว\nระบบได้ปิดกล้องและ GPS ให้แล้วครับ';
+        document.getElementById('successModal').classList.remove('hidden');
       } catch (err) {
         loading(false); 
         alert('ผิดพลาด: ' + err.message); 
