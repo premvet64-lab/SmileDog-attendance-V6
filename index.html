@@ -175,13 +175,21 @@
     <!-- Tab 3: Branches -->
     <div id="tabSettings" class="tab-content hidden">
       <div class="bg-gray-50 p-4 rounded-xl border mb-6">
-        <h4 class="font-bold text-gray-800 mb-4 flex items-center">📍 เพิ่มพิกัดสาขาใหม่</h4>
+        <h4 id="branchFormTitle" class="font-bold text-gray-800 mb-4 flex items-center">📍 เพิ่มพิกัดสาขาใหม่</h4>
+        <input type="hidden" id="editBranchNameTarget" value="">
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mb-2">
-          <input type="text" id="addBName" placeholder="ชื่อสาขา/สถานที่" class="border p-2 rounded-lg outline-none"><input type="text" id="addBLat" placeholder="Lat (ละติจูด)" class="border p-2 rounded-lg outline-none"><input type="text" id="addBLng" placeholder="Lng (ลองจิจูด)" class="border p-2 rounded-lg outline-none"><input type="number" id="addBRad" placeholder="รัศมี (เมตร)" class="border p-2 rounded-lg outline-none"><button onclick="manageBranch('add')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium">บันทึกสาขา</button>
+          <input type="text" id="addBName" placeholder="ชื่อสาขา/สถานที่" class="border p-2 rounded-lg outline-none bg-white">
+          <input type="text" id="addBLat" placeholder="Lat (ละติจูด)" class="border p-2 rounded-lg outline-none bg-white">
+          <input type="text" id="addBLng" placeholder="Lng (ลองจิจูด)" class="border p-2 rounded-lg outline-none bg-white">
+          <input type="number" id="addBRad" placeholder="รัศมี (เมตร)" class="border p-2 rounded-lg outline-none bg-white">
+          <div class="flex space-x-2">
+            <button id="btnSaveBranch" onclick="manageBranch('add')" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow">บันทึกสาขา</button>
+            <button id="btnCancelBranchEdit" onclick="cancelEditBranch()" class="hidden bg-gray-400 hover:bg-gray-500 text-white px-3 py-2 rounded-lg font-medium">ยกเลิก</button>
+          </div>
         </div>
         <button onclick="getAdminCurrentGPS()" class="text-blue-600 text-sm font-medium hover:underline">🎯 ดึงพิกัดปัจจุบันของฉันมาใส่ช่อง Lat/Lng</button>
       </div>
-      <div class="overflow-x-auto rounded-lg border"><table class="w-full text-sm text-left text-gray-600"><thead class="bg-gray-100 text-gray-700 uppercase text-xs font-bold border-b"><tr><th class="px-4 py-3">ชื่อสาขา</th><th class="px-4 py-3">Latitude</th><th class="px-4 py-3">Longitude</th><th class="px-4 py-3">รัศมี (m)</th><th class="px-4 py-3 text-center">จัดการ</th></tr></thead><tbody id="branchTableBody" class="divide-y"></tbody></table></div>
+      <div class="overflow-x-auto rounded-lg border"><table class="w-full text-sm text-left text-gray-600"><thead class="bg-gray-100 text-gray-700 uppercase text-xs font-bold border-b"><tr><th class="px-4 py-3">ชื่อสาขา</th><th class="px-4 py-3">LATITUDE</th><th class="px-4 py-3">LONGITUDE</th><th class="px-4 py-3">รัศมี (M)</th><th class="px-4 py-3 text-center">จัดการ</th></tr></thead><tbody id="branchTableBody" class="divide-y"></tbody></table></div>
     </div>
   </div>
 
@@ -596,7 +604,6 @@
 
         allUsers = users || [];
 
-        // คำนวณรหัสพนักงานอัตโนมัติ (เฉพาะกรณีเพิ่มใหม่)
         if (!document.getElementById('editUsernameTarget').value) {
           var nextEmpId = 0;
           if (allUsers.length > 0) {
@@ -842,7 +849,7 @@
 
       document.getElementById('editUsernameTarget').value = found.username;
       document.getElementById('addU').value = found.username;
-      document.getElementById('addU').disabled = true; // ล็อคไม่ให้แก้ Username หลัก
+      document.getElementById('addU').disabled = true;
       document.getElementById('addP').value = found.password || '';
       document.getElementById('addId').value = found.emp_id;
       document.getElementById('addName').value = found.emp_name;
@@ -855,7 +862,6 @@
       statusEl.innerText = '✅ มีข้อมูลใบหน้าเดิมอยู่แล้ว (หากต้องการเปลี่ยน ให้กดสแกนใหม่)';
       statusEl.className = 'text-xs text-blue-600 mt-3 font-bold bg-blue-50 px-3 py-1 rounded-full border border-blue-200';
       
-      // เลื่อนหน้าจอขึ้นมาที่ฟอร์ม
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -893,12 +899,10 @@
           loading(true, 'กำลังบันทึกข้อมูลพนักงาน...');
 
           if (editTarget) {
-            // โหมดแก้ไขข้อมูลเดิม
             var updatePayload = {
               password: newP,
               emp_name: newName
             };
-            // ถ้ายมีการสแกนหน้าใหม่เข้ามาด้วย ถึงจะอัปเดต face_data
             if (tempFaceDescriptor) {
               updatePayload.face_data = JSON.stringify(tempFaceDescriptor);
             }
@@ -910,7 +914,6 @@
             alert('✅ แก้ไขข้อมูลพนักงานสำเร็จ');
             cancelEditUser();
           } else {
-            // โหมดเพิ่มพนักงานใหม่
             if(!tempFaceDescriptor) {
               loading(false);
               return alert('กรุณาสแกนใบหน้าพนักงานก่อนบันทึกเข้าระบบครับ!');
@@ -951,28 +954,81 @@
       if(!Array.isArray(brs) || brs.length === 0) return tb.innerHTML = '<tr><td colspan="5" class="text-center py-4">ไม่มีข้อมูล</td></tr>';
       for(var i = 0; i < brs.length; i++) {
           var b = brs[i];
-          tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'><td class='px-4 py-3 font-medium text-indigo-600'>" + b.name + "</td><td class='px-4 py-3'>" + b.lat + "</td><td class='px-4 py-3'>" + b.lng + "</td><td class='px-4 py-3'>" + b.radius + "</td><td class='px-4 py-3 text-center'><button onclick=\"manageBranch('delete', '" + b.name + "')\" class='text-rose-500 px-3 py-1 rounded'>ลบ</button></td></tr>"; 
+          tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'>" +
+            "<td class='px-4 py-3 font-medium text-indigo-600'>" + b.name + "</td>" +
+            "<td class='px-4 py-3'>" + b.lat + "</td>" +
+            "<td class='px-4 py-3'>" + b.lng + "</td>" +
+            "<td class='px-4 py-3'>" + b.radius + "</td>" +
+            "<td class='px-4 py-3 text-center space-x-2'>" +
+              "<button onclick=\"prepareEditBranch('" + b.name + "', " + b.lat + ", " + b.lng + ", " + b.radius + ")\" class='bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold'>แก้ไข</button>" +
+              "<button onclick=\"manageBranch('delete', '" + b.name + "')\" class='bg-rose-500 hover:bg-rose-600 text-white px-3 py-1 rounded text-xs font-bold'>ลบ</button>" +
+            "</td>" +
+          "</tr>"; 
       }
+    }
+
+    function prepareEditBranch(name, lat, lng, radius) {
+      document.getElementById('editBranchNameTarget').value = name;
+      document.getElementById('addBName').value = name;
+      document.getElementById('addBLat').value = lat;
+      document.getElementById('addBLng').value = lng;
+      document.getElementById('addBRad').value = radius;
+
+      document.getElementById('branchFormTitle').innerText = '✏️ แก้ไขพิกัดสาขา: ' + name;
+      document.getElementById('btnSaveBranch').innerText = '💾 บันทึกการแก้ไข';
+      document.getElementById('btnCancelBranchEdit').classList.remove('hidden');
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEditBranch() {
+      document.getElementById('editBranchNameTarget').value = '';
+      document.getElementById('addBName').value = '';
+      document.getElementById('addBLat').value = '';
+      document.getElementById('addBLng').value = '';
+      document.getElementById('addBRad').value = '';
+
+      document.getElementById('branchFormTitle').innerText = '📍 เพิ่มพิกัดสาขาใหม่';
+      document.getElementById('btnSaveBranch').innerText = 'บันทึกสาขา';
+      document.getElementById('btnCancelBranchEdit').classList.add('hidden');
     }
 
     async function manageBranch(action, bName) {
       try {
+        var editTargetBranch = document.getElementById('editBranchNameTarget').value;
+
         if(action === 'add') {
           var n = document.getElementById('addBName').value;
           var l = document.getElementById('addBLat').value;
           var g = document.getElementById('addBLng').value;
           var r = document.getElementById('addBRad').value;
-          if(!n || !l || !g || !r) return alert('กรอกข้อมูลสาขาให้ครบ');
+          if(!n || !l || !g || !r) return alert('กรอกข้อมูลสาขาให้ครบถ้วน');
           
-          loading(true, 'เพิ่มสาขา...');
-          var { error } = await supabaseClient.from('branches').insert([{
-            name: n, lat: parseFloat(l), lng: parseFloat(g), radius: parseFloat(r)
-          }]);
-          loading(false);
+          loading(true, 'กำลังบันทึกสาขา...');
 
-          if(error) return alert('เพิ่มสาขาไม่สำเร็จ: ' + error.message);
-          alert('✅ เพิ่มสาขาสำเร็จ');
-          loadAdminData(); 
+          if (editTargetBranch) {
+            // โหมดแก้ไขสาขาเดิม
+            var { error } = await supabaseClient.from('branches')
+              .update({ name: n, lat: parseFloat(l), lng: parseFloat(g), radius: parseFloat(r) })
+              .eq('name', editTargetBranch);
+            loading(false);
+
+            if(error) return alert('แก้ไขสาขาไม่สำเร็จ: ' + error.message);
+            alert('✅ แก้ไขสาขาสำเร็จ');
+            cancelEditBranch();
+            loadAdminData();
+          } else {
+            // โหมดเพิ่มสาขาใหม่
+            var { error } = await supabaseClient.from('branches').insert([{
+              name: n, lat: parseFloat(l), lng: parseFloat(g), radius: parseFloat(r)
+            }]);
+            loading(false);
+
+            if(error) return alert('เพิ่มสาขาไม่สำเร็จ: ' + error.message);
+            alert('✅ เพิ่มสาขาสำเร็จ');
+            cancelEditBranch();
+            loadAdminData(); 
+          }
         } else if (action === 'delete') {
           if(!confirm('ลบสาขา ' + bName + ' ใช่หรือไม่?')) return;
           
