@@ -60,7 +60,7 @@
     </div>
   </div>
 
-  <!-- Success Modal (แจ้งเตือนสำเร็จ / หมดเวลา / ออกจากแอดมิน) -->
+  <!-- Success Modal -->
   <div id="successModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center space-y-4">
       <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">✓</div>
@@ -81,8 +81,7 @@
     <div class="bg-blue-50 p-3 rounded-lg mb-4 text-center border border-blue-100 flex flex-col space-y-2">
       <p id="gpsStatus" class="text-sm font-medium text-gray-600 bg-white p-2 rounded shadow-sm">📍 กำลังค้นหาพิกัด GPS...</p>
       <p id="faceStatus" class="text-sm font-medium text-gray-600 bg-white p-2 rounded shadow-sm">👤 กำลังค้นหาใบหน้าพนักงาน...</p>
-      <p id="logoutTimerDisplay" class="text-xs font-bold text-rose-500 hidden">⏳ รีเซ็ตหน้าจอใน: <span id="logoutCountdown">120</span> วินาที</p>
-      <p id="faceTimerDisplay" class="text-xs font-bold text-orange-500 hidden">⚠️ ยืนยันหน้าหมดอายุใน: <span id="faceCountdown">30</span> วินาที</p>
+      <p id="logoutTimerDisplay" class="text-xs font-bold text-rose-500 hidden">⏳ รีเซ็ตหน้าจอใน: <span id="logoutCountdown">30</span> วินาที</p>
     </div>
     
     <div class="mb-4 relative bg-black rounded-xl overflow-hidden h-80 flex items-center justify-center border-4 border-gray-100 shadow-inner">
@@ -94,7 +93,7 @@
       <button id="btnOut" onclick="record('ออกงาน')" disabled class="bg-rose-500 hover:bg-rose-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold shadow-lg transition">ออกงาน</button>
     </div>
 
-    <!-- ปุ่มเข้าระบบ Admin ใต้ปุ่มลงเวลา -->
+    <!-- ปุ่มเข้าระบบ Admin -->
     <button onclick="openAdminLoginModal()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm transition border border-gray-200">
       ⚙️ เข้าสู่ระบบแอดมิน
     </button>
@@ -147,17 +146,13 @@
     <!-- Tab 2: Users -->
     <div id="tabUsers" class="tab-content hidden">
       <div class="bg-blue-50 p-6 rounded-xl border border-blue-100 mb-6">
-        <h4 id="formTitle" class="font-bold text-indigo-800 mb-4 flex items-center">➕ ลงทะเบียนพนักงานใหม่ (พร้อมสแกนใบหน้า)</h4>
+        <h4 id="formTitle" class="font-bold text-indigo-800 mb-4 flex items-center">➕ ลงทะเบียนพนักงานใหม่ (สแกนใบหน้าเท่านั้น)</h4>
         <input type="hidden" id="editUsernameTarget" value="">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div class="space-y-3 bg-white p-4 rounded-lg shadow-sm">
             <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1">Username (ใช้สำหรับอ้างอิง)</label>
+              <label class="block text-xs font-medium text-gray-500 mb-1">Username (ชื่ออ้างอิงระบบ)</label>
               <input type="text" id="addU" placeholder="Username" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1">Password</label>
-              <input type="text" id="addP" placeholder="Password" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
             </div>
             <div>
               <label class="block text-xs font-medium text-gray-500 mb-1">รหัสพนักงาน (ระบบรันอัตโนมัติ)</label>
@@ -174,7 +169,7 @@
                 <button onclick="startAdminCamera()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-2 py-2 rounded-lg text-xs font-bold transition">1. เปิดกล้อง</button>
                 <button onclick="scanAdminFace()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-2 rounded-lg text-xs font-bold transition shadow-md">2. สแกนจำใบหน้า</button>
             </div>
-            <p id="adminFaceStatus" class="text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200">❌ ยังไม่มีข้อมูลใบหน้าใหม่</p>
+            <p id="adminFaceStatus" class="text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200">❌ ยังไม่มีข้อมูลใบหน้า</p>
           </div>
         </div>
         <div class="flex space-x-2">
@@ -243,12 +238,9 @@
     var watchGpsId = null;
     var tempFaceDescriptor = null;
 
-    var idleTimeout = null;
-    var faceExpiryTimeout = null;
-    var faceCountdownInterval = null;
-    var logoutCountdownInterval = null;
-    var IDLE_TIME_LIMIT = 120; 
-    var FACE_EXPIRY_LIMIT = 30; 
+    var logoutTimerId = null;
+    var IDLE_TIME_LIMIT = 30; 
+    var isAppActive = true; // ตัวแปรล็อกสถานะการทำงานของแอป
 
     function loading(show, text) {
       if(text) document.getElementById('loadingText').innerText = text;
@@ -289,7 +281,7 @@
       if (continuousFaceInterval) clearInterval(continuousFaceInterval);
 
       continuousFaceInterval = setInterval(async function() {
-        if (!video.videoWidth || cachedLoginUsers.length === 0 || isFaceOk) return;
+        if (!isAppActive || !video.videoWidth || cachedLoginUsers.length === 0 || isFaceOk) return;
         
         try {
           var detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
@@ -308,7 +300,6 @@
                   statusEl.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">✅ ยืนยันตัวตนผ่าน! (AI)</span>';
                   
                   checkEnableButtons();
-                  startFaceExpiryTimer();
                   return;
                 }
               }
@@ -321,6 +312,7 @@
     }
 
     function stopCameraAndGps() {
+      isAppActive = false; // ล็อกไม่ให้แอปทำงานต่อ
       if (continuousFaceInterval) { clearInterval(continuousFaceInterval); continuousFaceInterval = null; }
       if (videoStream) {
         videoStream.getTracks().forEach(function(t) { t.stop(); });
@@ -334,6 +326,7 @@
     }
 
     function restartScanning() {
+      isAppActive = true; // ปลดล็อกให้แอปกลับมาทำงาน
       document.getElementById('successModal').classList.add('hidden');
       user = null; isFaceOk = false; isGpsOk = false;
       document.getElementById('uName').innerText = 'กำลังสแกนใบหน้า...';
@@ -362,7 +355,6 @@
         closeAdminLoginModal();
         document.getElementById('adminUser').value = '';
         document.getElementById('adminPass').value = '';
-        // หยุดกล้อง GPS และเคลียร์เวลาถอยหลังทั้งหมดทันทีเมื่อเข้าแอดมิน
         stopCameraAndGps();
         switchPage('pageAdmin'); 
         loadAdminData(); 
@@ -374,78 +366,54 @@
     function logoutAdmin() {
       switchPage('pageUser');
       document.getElementById('successTitle').innerText = 'ออกจากระบบแอดมินแล้ว';
-      document.getElementById('successMessage').innerText = 'ระบบได้เปิดการทำงานใหม่ กรุณากดปุ่มเพื่อเริ่มสแกน';
+      document.getElementById('successMessage').innerText = 'ระบบได้ปิดกล้องและ GPS เรียบร้อยแล้ว กรุณากดปุ่มเพื่อเริ่มสแกนใหม่';
+      document.getElementById('successModal').classList.add('hidden');
+      stopCameraAndGps(); // ให้อยู่ในสถานะปิดกล้อง/GPS จนกว่าจะกดปุ่มเริ่มสแกนใหม่
       document.getElementById('successModal').classList.remove('hidden');
     }
 
     function clearAllTimers() {
-      if (idleTimeout) clearTimeout(idleTimeout);
-      if (faceExpiryTimeout) clearTimeout(faceExpiryTimeout);
-      if (faceCountdownInterval) { clearInterval(faceCountdownInterval); faceCountdownInterval = null; }
-      if (logoutCountdownInterval) { clearInterval(logoutCountdownInterval); logoutCountdownInterval = null; }
+      if (logoutTimerId) { cancelAnimationFrame(logoutTimerId); logoutTimerId = null; }
+      document.getElementById('logoutTimerDisplay').classList.add('hidden');
     }
 
     function startIdleTimer() {
-        clearAllTimers();
-        var timeLeft = IDLE_TIME_LIMIT;
-        document.getElementById('logoutTimerDisplay').classList.remove('hidden');
-        document.getElementById('logoutCountdown').innerText = timeLeft;
+      clearAllTimers();
+      if (!isAppActive) return; // ถ้าแอปถูกปิดการใช้งานอยู่ ไม่ต้องนับเวลา
+      
+      var targetTime = Date.now() + (IDLE_TIME_LIMIT * 1000);
+      document.getElementById('logoutTimerDisplay').classList.remove('hidden');
 
-        logoutCountdownInterval = setInterval(function() {
-            timeLeft--;
-            document.getElementById('logoutCountdown').innerText = timeLeft;
-            if (timeLeft <= 0) {
-                stopCameraAndGps();
-                document.getElementById('successTitle').innerText = 'หมดเวลาการใช้งาน';
-                document.getElementById('successMessage').innerText = 'ครบ 120 วินาที ระบบได้ปิดกล้องและ GPS เพื่อความปลอดภัย';
-                document.getElementById('successModal').classList.remove('hidden');
-            }
-        }, 1000);
-    }
-
-    function startFaceExpiryTimer() {
-        if (faceCountdownInterval) { clearInterval(faceCountdownInterval); faceCountdownInterval = null; }
-        
-        var timeLeft = FACE_EXPIRY_LIMIT;
-        var displayEl = document.getElementById('faceTimerDisplay');
-        var countdownEl = document.getElementById('faceCountdown');
-        
-        displayEl.classList.remove('hidden');
-        countdownEl.innerText = timeLeft;
-
-        faceCountdownInterval = setInterval(function() {
-            timeLeft--;
-            countdownEl.innerText = timeLeft;
-            
-            if (timeLeft <= 0) {
-                clearInterval(faceCountdownInterval);
-                faceCountdownInterval = null;
-                displayEl.classList.add('hidden');
-                
-                isFaceOk = false;
-                user = null;
-                document.getElementById('uName').innerText = 'กำลังสแกนใบหน้า...';
-                document.getElementById('uId').innerText = '-';
-                checkEnableButtons();
-                alert('⏳ หมดเวลายืนยันตัวตน (30 วินาที) กรุณาสแกนใบหน้าใหม่อีกครั้ง');
-                startContinuousFaceRecognition(); 
-            }
-        }, 1000);
+      function updateIdle() {
+        if (!isAppActive) return;
+        var remaining = Math.ceil((targetTime - Date.now()) / 1000);
+        if (remaining <= 0) {
+          stopCameraAndGps();
+          document.getElementById('successTitle').innerText = 'หมดเวลาการใช้งาน';
+          document.getElementById('successMessage').innerText = 'ครบ 30 วินาที ระบบได้ปิดกล้องและ GPS เพื่อความปลอดภัย';
+          document.getElementById('successModal').classList.remove('hidden');
+        } else {
+          document.getElementById('logoutCountdown').innerText = remaining;
+          logoutTimerId = requestAnimationFrame(updateIdle);
+        }
+      }
+      logoutTimerId = requestAnimationFrame(updateIdle);
     }
 
     function resetTimers() {
-        if (!document.getElementById('pageUser').classList.contains('hidden')) {
-            if (logoutCountdownInterval) { clearInterval(logoutCountdownInterval); }
-            startIdleTimer();
-        }
+      if (isAppActive && !document.getElementById('pageUser').classList.contains('hidden')) {
+        startIdleTimer();
+      }
     }
     
     document.addEventListener('mousemove', resetTimers);
     document.addEventListener('keypress', resetTimers);
     document.addEventListener('touchstart', resetTimers);
+    document.addEventListener('touchmove', resetTimers);
+    document.addEventListener('scroll', resetTimers);
 
     function checkEnableButtons() {
-       if (isGpsOk && isFaceOk) {
+       if (isAppActive && isGpsOk && isFaceOk) {
            document.getElementById('btnIn').disabled = false;
            document.getElementById('btnOut').disabled = false;
        } else {
@@ -455,7 +423,12 @@
     }
 
     function startCamera() {
+      if (!isAppActive) return;
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).then(function(stream) {
+        if (!isAppActive) {
+          stream.getTracks().forEach(function(t) { t.stop(); });
+          return;
+        }
         videoStream = stream;
         document.getElementById('video').srcObject = stream;
       }).catch(function(e) { alert('เปิดกล้องไม่ได้: ' + e.message); });
@@ -490,9 +463,10 @@
     }
 
     async function loadUserBranches() {
+      if (!isAppActive) return;
       try {
         var { data, error } = await supabaseClient.from('branches').select('*');
-        if (!error && data) {
+        if (!error && data && isAppActive) {
           branches = data;
           watchGPS();
         }
@@ -500,9 +474,11 @@
     }
 
     function watchGPS() {
+      if (!isAppActive) return;
       if(!navigator.geolocation) return document.getElementById('gpsStatus').innerHTML = '<span class="text-red-500">เบราว์เซอร์ไม่รองรับ GPS</span>';
       
       watchGpsId = navigator.geolocation.watchPosition(function(pos) {
+        if (!isAppActive) return;
         curLat = pos.coords.latitude; 
         curLng = pos.coords.longitude;
         if(branches.length === 0) return document.getElementById('gpsStatus').innerHTML = '<span class="text-red-500">ยังไม่มีการตั้งค่าสาขา</span>';
@@ -522,6 +498,7 @@
         else status.innerHTML = '<span class="text-rose-600 font-bold bg-rose-100 px-2 py-1 rounded">❌ GPS นอกพิกัด (' + Math.floor(minDist) + 'ม., รัศมี ' + nearest.radius + 'ม.)</span>';
         checkEnableButtons(); 
       }, function(err) {
+        if (!isAppActive) return;
         var errMessage = "เข้าถึง GPS ไม่ได้";
         if (err.code === 1) errMessage = "ถูกปฏิเสธสิทธิ์ GPS (Permission Denied)";
         document.getElementById('gpsStatus').innerHTML = '<span class="text-rose-600 font-bold">❌ ' + errMessage + '</span>';
@@ -539,7 +516,7 @@
     }
 
     async function record(type) {
-      if(!isGpsOk || !isFaceOk) return alert('เงื่อนไขยังไม่ครบถ้วน');
+      if(!isAppActive || !isGpsOk || !isFaceOk) return alert('เงื่อนไขยังไม่ครบถ้วน');
       if(!confirm('ยืนยันการลงเวลา "' + type + '" ที่สาขา "' + currentBranchName + '"?')) return;
       
       loading(true, 'กำลังบันทึกข้อมูล...');
@@ -887,7 +864,6 @@
       document.getElementById('editUsernameTarget').value = found.username;
       document.getElementById('addU').value = found.username;
       document.getElementById('addU').disabled = true;
-      document.getElementById('addP').value = found.password || '';
       document.getElementById('addId').value = found.emp_id;
       document.getElementById('addName').value = found.emp_name;
 
@@ -906,11 +882,10 @@
       document.getElementById('editUsernameTarget').value = '';
       document.getElementById('addU').value = '';
       document.getElementById('addU').disabled = false;
-      document.getElementById('addP').value = '';
       document.getElementById('addName').value = '';
       tempFaceDescriptor = null;
 
-      document.getElementById('formTitle').innerText = '➕ ลงทะเบียนพนักงานใหม่ (พร้อมสแกนใบหน้า)';
+      document.getElementById('formTitle').innerText = '➕ ลงทะเบียนพนักงานใหม่ (สแกนใบหน้าเท่านั้น)';
       document.getElementById('btnSaveUser').innerText = '✅ บันทึกพนักงานเข้าระบบ';
       document.getElementById('btnCancelEdit').classList.add('hidden');
 
@@ -927,17 +902,15 @@
 
         if(action === 'add') {
           var newU = document.getElementById('addU').value;
-          var newP = document.getElementById('addP').value;
           var newId = document.getElementById('addId').value;
           var newName = document.getElementById('addName').value;
 
-          if(!newU || !newP || !newName) return alert('กรอกข้อมูลให้ครบถ้วน');
+          if(!newU || !newName) return alert('กรอก Username และ ชื่อ-นามสกุล ให้ครบถ้วน');
 
           loading(true, 'กำลังบันทึกข้อมูลพนักงาน...');
 
           if (editTarget) {
             var updatePayload = {
-              password: newP,
               emp_name: newName
             };
             if (tempFaceDescriptor) {
@@ -958,7 +931,7 @@
 
             var { error } = await supabaseClient.from('users').insert([{
               username: newU,
-              password: newP,
+              password: '',
               emp_id: newId,
               emp_name: newName,
               face_data: JSON.stringify(tempFaceDescriptor)
