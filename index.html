@@ -29,6 +29,9 @@
   <script src="https://npmcdn.com/flatpickr/dist/l10n/th.js"></script>
   
   <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+  
+  <!-- โหลด Supabase JS Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style> 
     body { font-family: 'Prompt', sans-serif; background-color: #f3f4f6; } 
@@ -107,13 +110,12 @@
         <div class="w-full flex flex-wrap gap-2 mt-2 border-b pb-4 border-gray-200">
           <button onclick="loadReports()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition flex-1 sm:flex-none shadow">🔍 ค้นหา</button>
           <button onclick="exportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition flex-1 sm:flex-none shadow">📥 ดาวน์โหลด Excel</button>
-          <button onclick="promptDeletePhotos()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition sm:ml-auto flex-1 sm:flex-none shadow">🗑️️ ลบรูปเก่า</button>
+          <button onclick="promptDeletePhotos()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition sm:ml-auto flex-1 sm:flex-none shadow">🗑 ลบรูปเก่า</button>
         </div>
 
         <!-- ส่วนจัดการฐานข้อมูล สำหรับแอดมิน -->
         <div class="w-full flex flex-wrap gap-2 mt-2 items-center bg-rose-50 p-3 rounded-lg border border-rose-200">
             <span class="font-bold text-rose-700 mr-2 text-sm">⚙️ จัดการพื้นที่ฐานข้อมูล:</span>
-            <button onclick="promptBackupData()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow text-sm">💾 ดึงข้อมูลสร้างไฟล์ Backup ใหม่</button>
             <button onclick="promptDeleteData()" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-medium shadow text-sm">🗑️ เคลียร์ข้อมูลการเข้างานในตาราง</button>
         </div>
       </div>
@@ -170,8 +172,12 @@
 
   <script>
     // ========================================================
-    var GAS_URL = "https://script.google.com/macros/s/AKfycbwoICiYNKjVfWyX9qZx3E9-be_FWiXGvvMMNd20gwWl4r7abthSQOk8XGnPTt0TgjWV/exec";
+    // ตั้งค่าเชื่อมต่อ Supabase ของคุณ (นำ Project URL และ Publishable key มาใส่ที่นี่)
+    var SUPABASE_URL = "https://nnfeahrjtlyinausphaj.supabase.co"; 
+    var SUPABASE_KEY = "sb_publishable_JeZU7W_dkq_bb79jST2y9A_wx4cu7gk"; 
     // ========================================================
+
+    var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     document.addEventListener("DOMContentLoaded", function() {
       flatpickr("#filterStart", { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", locale: "th" });
@@ -216,38 +222,40 @@
       document.getElementById(id).classList.remove('hidden');
     }
 
-    function callAPI(payload) {
-      return fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) })
-        .then(function(response) { return response.json(); });
-    }
-
-    function login() {
+    async function login() {
       var u = document.getElementById('logUser').value;
       var p = document.getElementById('logPass').value;
       if(!u || !p) return alert('กรอกข้อมูลให้ครบ');
       loading(true, 'ตรวจสอบข้อมูล...');
       
-      callAPI({ action: 'checkLogin', u: u, p: p }).then(function(res) {
-        loading(false);
-        if(!res.success) return alert(res.message);
-        user = res;
-        
-        if(res.role === 'admin') { 
-            switchPage('pageAdmin'); 
-            loadAdminData(); 
-        } else { 
-            switchPage('pageUser'); 
-            document.getElementById('uName').innerText = user.empName; 
-            document.getElementById('uId').innerText = user.empId; 
-            startCamera(); 
-            loadUserBranches(); 
-            startFaceVerification(); 
-            startIdleTimer(); 
+      try {
+        if (u === 'admin' && p === 'admin1234') {
+          loading(false);
+          user = { role: 'admin', empName: 'Admin' };
+          switchPage('pageAdmin'); 
+          loadAdminData(); 
+          return;
         }
-      }).catch(function(err) {
+
+        var { data, error } = await supabaseClient.from('users').select('*').eq('username', u).eq('password', p).single();
+        loading(false);
+
+        if (error || !data) {
+          return alert('ชื่อผู้ใช้ หรือ รหัสผ่านไม่ถูกต้อง');
+        }
+
+        user = { role: 'user', empId: data.emp_id.toString(), empName: data.emp_name, faceData: data.face_data };
+        switchPage('pageUser'); 
+        document.getElementById('uName').innerText = user.empName; 
+        document.getElementById('uId').innerText = user.empId; 
+        startCamera(); 
+        loadUserBranches(); 
+        startFaceVerification(); 
+        startIdleTimer(); 
+      } catch (err) {
         loading(false); 
         alert('เชื่อมต่อล้มเหลว: ' + err.message);
-      });
+      }
     }
 
     function logout(reason) { 
@@ -428,11 +436,14 @@
         });
     }
 
-    function loadUserBranches() {
-      callAPI({ action: 'getBranches' }).then(function(res) {
-        branches = res;
-        watchGPS();
-      }).catch(function(e) { console.log(e); });
+    async function loadUserBranches() {
+      try {
+        var { data, error } = await supabaseClient.from('branches').select('*');
+        if (!error && data) {
+          branches = data;
+          watchGPS();
+        }
+      } catch(e) { console.log(e); }
     }
 
     function watchGPS() {
@@ -463,38 +474,80 @@
       return 12742000 * Math.asin(Math.sqrt(a));
     }
 
-    function record(type) {
+    async function record(type) {
       if(!isGpsOk || !isFaceOk) return alert('เงื่อนไขยังไม่ครบถ้วน');
       if(!confirm('ยืนยันการลงเวลา "' + type + '" ที่สาขา "' + currentBranchName + '"?')) return;
       
       clearAllTimers(); 
       loading(true, 'กำลังบันทึกข้อมูล...');
       
-      var payload = { 
-          empId: user.empId, 
-          empName: user.empName, 
-          type: type, 
-          branchName: currentBranchName, 
-          lat: curLat, 
-          lng: curLng, 
-          distance: Math.floor(curDist)
-      };
-      
-      callAPI({ action: 'saveRecordWithPhoto', payload: payload }).then(function(res) {
-        loading(false); 
-        if(res.success) {
-            logout('✅ ' + res.message + '\nระบบจะออกจากระบบอัตโนมัติเพื่อความปลอดภัย');
+      var now = new Date();
+      var dateStr = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + now.getFullYear();
+      var timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+      var distStr = Math.floor(curDist) + "m";
+      var photoStatus = "✅ ผ่าน AI";
+
+      try {
+        if (type === 'เข้างาน') {
+          var { error } = await supabaseClient.from('attendance_data').insert([{
+            date: dateStr,
+            emp_id: user.empId,
+            emp_name: user.empName,
+            time_in: timeStr,
+            time_out: "",
+            branch: currentBranchName,
+            distance: distStr,
+            photo_in: photoStatus,
+            photo_out: ""
+          }]);
+          if(error) throw error;
         } else {
-            alert(res.message);
-            startIdleTimer(); 
-            startFaceVerification();
+          // ออกงาน: ค้นหาแถวของวันนี้ที่ยังไม่มีเวลาออก
+          var { data: existing, error: errFind } = await supabaseClient.from('attendance_data')
+            .select('*')
+            .eq('date', dateStr)
+            .eq('emp_id', user.empId)
+            .order('id', { ascending: false })
+            .limit(1);
+
+          if (existing && existing.length > 0 && !existing[0].time_out) {
+            var row = existing[0];
+            var oldBranch = row.branch || "";
+            var newBranch = (oldBranch === currentBranchName) ? oldBranch : oldBranch + ", " + currentBranchName;
+
+            var { error: errUp } = await supabaseClient.from('attendance_data')
+              .update({
+                time_out: timeStr,
+                branch: newBranch,
+                photo_out: photoStatus
+              })
+              .eq('id', row.id);
+            if(errUp) throw errUp;
+          } else {
+            // ถ้าไม่พบรายการเข้างานก่อนหน้า ให้บันทึกเป็นรายการออกงานใหม่
+            var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
+              date: dateStr,
+              emp_id: user.empId,
+              emp_name: user.empName,
+              time_in: "",
+              time_out: timeStr,
+              branch: currentBranchName,
+              distance: distStr,
+              photo_in: "",
+              photo_out: photoStatus
+            }]);
+            if(errIns) throw errIns;
+          }
         }
-      }).catch(function(err) {
-          loading(false); 
-          alert('ผิดพลาด: ' + err.message); 
-          startIdleTimer();
-          startFaceVerification();
-      });
+
+        loading(false);
+        logout('✅ บันทึกเวลา ' + type + ' (' + currentBranchName + ') สำเร็จ! ⚡\nระบบจะออกจากระบบอัตโนมัติเพื่อความปลอดภัย');
+      } catch (err) {
+        loading(false); 
+        alert('ผิดพลาด: ' + err.message); 
+        startIdleTimer();
+        startFaceVerification();
+      }
     }
 
     function adminTab(id) {
@@ -511,75 +564,99 @@
       document.getElementById(btnId).classList.add('text-indigo-600','border-b-2','border-indigo-600');
     }
 
-    function loadAdminData() {
+    async function loadAdminData() {
       loading(true, 'กำลังเตรียมข้อมูล...');
-      callAPI({ action: 'getAdminInitData' }).then(function(res) {
+      try {
+        var { data: users, error: errU } = await supabaseClient.from('users').select('*');
+        var { data: brs, error: errB } = await supabaseClient.from('branches').select('*');
         loading(false);
-        var users = res.users;
-        var brs = res.branches;
-        allUsers = users; 
-        
+
+        allUsers = users || [];
         var selEmp = document.getElementById('filterEmp'); 
         selEmp.innerHTML = '<option value="all">ทั้งหมดทุกคน</option>';
-        for(var i = 0; i < users.length; i++) {
-          selEmp.innerHTML += '<option value="' + users[i].empId + '">' + users[i].empName + '</option>';
+        for(var i = 0; i < allUsers.length; i++) {
+          selEmp.innerHTML += '<option value="' + allUsers[i].emp_id + '">' + allUsers[i].emp_name + '</option>';
         }
         
         var selBr = document.getElementById('filterBranch'); 
         selBr.innerHTML = '<option value="all">รวมทุกสาขา</option>';
-        for(var j = 0; j < brs.length; j++) {
-          selBr.innerHTML += '<option value="' + brs[j].name + '">' + brs[j].name + '</option>';
+        var branchesList = brs || [];
+        for(var j = 0; j < branchesList.length; j++) {
+          selBr.innerHTML += '<option value="' + branchesList[j].name + '">' + branchesList[j].name + '</option>';
         }
         
-        renderUsers(users); 
-        renderBranches(brs);
-      }).catch(function(e) {
+        renderUsers(allUsers); 
+        renderBranches(branchesList);
+      } catch(e) {
         loading(false);
         console.error(e);
-      });
+      }
     }
 
     var reportData = [];
 
-    function loadReports() {
+    async function loadReports() {
       loading(true, 'ค้นหาข้อมูล...');
       var s = document.getElementById('filterStart').value; 
       var e = document.getElementById('filterEnd').value;
       var emp = document.getElementById('filterEmp').value;
       var br = document.getElementById('filterBranch').value;
       
-      callAPI({ action: 'getReports', s: s, e: e, emp: emp, branch: br }).then(function(res) {
+      try {
+        var query = supabaseClient.from('attendance_data').select('*');
+        var { data: res, error } = await query;
         loading(false);
-        reportData = res;
+        if(error) throw error;
+
+        // กรองข้อมูลฝั่ง Client ตามเงื่อนไขวันที่ พนักงาน และสาขา
+        reportData = (res || []).filter(function(r) {
+          var passDate = true;
+          if (s && e && r.date) {
+            // แปลง วัน/เดือน/ปี เป็น object วันที่เพื่อเทียบช่วงเวลา
+            var parts = r.date.split('/');
+            if(parts.length === 3) {
+              var rDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+              var sObj = new Date(s);
+              var eObj = new Date(e);
+              sObj.setHours(0,0,0,0);
+              eObj.setHours(23,59,59,999);
+              passDate = (rDateObj >= sObj && rDateObj <= eObj);
+            }
+          }
+          var passEmp = (!emp || emp === 'all') ? true : (String(r.emp_id) === String(emp));
+          var passBranch = (!br || br === 'all') ? true : (r.branch && r.branch.includes(br));
+          return passDate && passEmp && passBranch;
+        });
+
         var tb = document.getElementById('reportTableBody'); 
         tb.innerHTML = '';
-        if(res.length === 0) {
+        if(reportData.length === 0) {
           tb.innerHTML = '<tr><td colspan="9" class="px-4 py-6 text-center text-gray-500">ไม่พบข้อมูล</td></tr>';
         } else {
-          for(var i = 0; i < res.length; i++) {
-            var r = res[i];
-            var inBadge = r.timeIn ? '<span class="text-emerald-600 font-bold">' + r.timeIn + '</span>' : '-';
-            var outBadge = r.timeOut ? '<span class="text-rose-600 font-bold">' + r.timeOut + '</span>' : '-';
-            var htmlIn = r.photoIn ? '<span class="text-emerald-600 text-xs font-bold">' + r.photoIn + '</span>' : '-';
-            var htmlOut = r.photoOut ? '<span class="text-emerald-600 text-xs font-bold">' + r.photoOut + '</span>' : '-';
+          for(var i = 0; i < reportData.length; i++) {
+            var r = reportData[i];
+            var inBadge = r.time_in ? '<span class="text-emerald-600 font-bold">' + r.time_in + '</span>' : '-';
+            var outBadge = r.time_out ? '<span class="text-rose-600 font-bold">' + r.time_out + '</span>' : '-';
+            var htmlIn = r.photo_in ? '<span class="text-emerald-600 text-xs font-bold">' + r.photo_in + '</span>' : '-';
+            var htmlOut = r.photo_out ? '<span class="text-emerald-600 text-xs font-bold">' + r.photo_out + '</span>' : '-';
 
             tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'>" +
               "<td class='px-4 py-3 whitespace-nowrap'>" + r.date + "</td>" +
-              "<td class='px-4 py-3'>" + r.empId + "</td>" +
-              "<td class='px-4 py-3 font-medium'>" + r.empName + "</td>" +
+              "<td class='px-4 py-3'>" + r.emp_id + "</td>" +
+              "<td class='px-4 py-3 font-medium'>" + r.emp_name + "</td>" +
               "<td class='px-4 py-3'>" + inBadge + "</td>" +
               "<td class='px-4 py-3 text-center'>" + htmlIn + "</td>" +
               "<td class='px-4 py-3'>" + outBadge + "</td>" +
               "<td class='px-4 py-3 text-center'>" + htmlOut + "</td>" +
               "<td class='px-4 py-3 text-indigo-600 font-medium'>" + (r.branch || "-") + "</td>" +
-              "<td class='px-4 py-3'>" + r.distance + "</td>" +
+              "<td class='px-4 py-3'>" + (r.distance || "-") + "</td>" +
             "</tr>";
           }
         }
-      }).catch(function(err) {
+      } catch(err) {
         loading(false);
         alert('ผิดพลาด: ' + err.message);
-      });
+      }
     }
 
     function getDatesInRange(startDateStr, endDateStr) {
@@ -587,8 +664,8 @@
       var currentDate = new Date(startDateStr);
       var end = new Date(endDateStr);
       while (currentDate <= end) {
-        var d = currentDate.getDate().toString().padStart(2, '0');
-        var m = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+        var d = String(currentDate.getDate()).padStart(2, '0');
+        var m = String(currentDate.getMonth() + 1).padStart(2, '0');
         var y = currentDate.getFullYear();
         dates.push(d + '/' + m + '/' + y);
         currentDate.setDate(currentDate.getDate() + 1);
@@ -609,8 +686,8 @@
       var dataByEmpId = {};
       for(var i = 0; i < reportData.length; i++) {
         var r = reportData[i];
-        if(!dataByEmpId[r.empId]) dataByEmpId[r.empId] = [];
-        dataByEmpId[r.empId].push(r);
+        if(!dataByEmpId[r.emp_id]) dataByEmpId[r.emp_id] = [];
+        dataByEmpId[r.emp_id].push(r);
       }
 
       var employeesToExport = [];
@@ -619,7 +696,7 @@
         employeesToExport = allUsers; 
       } else {
         for(var k = 0; k < allUsers.length; k++) {
-          if(allUsers[k].empId.toString() === filterEmpId.toString()) {
+          if(String(allUsers[k].emp_id) === String(filterEmpId)) {
             employeesToExport.push(allUsers[k]);
           }
         }
@@ -627,26 +704,26 @@
 
       for (var x = 0; x < employeesToExport.length; x++) {
         var emp = employeesToExport[x];
-        var name = emp.empName || "Unknown";
+        var name = emp.emp_name || "Unknown";
         name = name.substring(0, 31); 
         var sheet = workbook.addWorksheet(name);
         
         sheet.columns = [
           { header: 'วันที่', key: 'date', width: 15 },
-          { header: 'รหัสพนักงาน', key: 'empId', width: 15 },
-          { header: 'ชื่อ-นามสกุล', key: 'empName', width: 25 },
-          { header: 'เวลาเข้างาน', key: 'timeIn', width: 15 },
-          { header: 'เวลาออกงาน', key: 'timeOut', width: 15 },
+          { header: 'รหัสพนักงาน', key: 'emp_id', width: 15 },
+          { header: 'ชื่อ-นามสกุล', key: 'emp_name', width: 25 },
+          { header: 'เวลาเข้างาน', key: 'time_in', width: 15 },
+          { header: 'เวลาออกงาน', key: 'time_out', width: 15 },
           { header: 'สาขา', key: 'branch', width: 25 },
           { header: 'ระยะทาง', key: 'distance', width: 15 },
-          { header: 'ยืนยันใบหน้า (เข้า)', key: 'photoIn', width: 25 },
-          { header: 'ยืนยันใบหน้า (ออก)', key: 'photoOut', width: 25 }
+          { header: 'ยืนยันใบหน้า (เข้า)', key: 'photo_in', width: 25 },
+          { header: 'ยืนยันใบหน้า (ออก)', key: 'photo_out', width: 25 }
         ];
 
         sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
         sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
 
-        var empRecords = dataByEmpId[emp.empId] || [];
+        var empRecords = dataByEmpId[emp.emp_id] || [];
 
         for(var y = 0; y < dateRangeArray.length; y++) {
            var dateStr = dateRangeArray[y];
@@ -659,13 +736,13 @@
                for(var w = 0; w < recordsForThisDate.length; w++) {
                    var rec = recordsForThisDate[w];
                    sheet.addRow({
-                    date: rec.date, empId: rec.empId, empName: rec.empName,
-                    timeIn: rec.timeIn, timeOut: rec.timeOut, branch: rec.branch, distance: rec.distance,
-                    photoIn: rec.photoIn, photoOut: rec.photoOut 
+                    date: rec.date, emp_id: rec.emp_id, emp_name: rec.emp_name,
+                    time_in: rec.time_in, time_out: rec.time_out, branch: rec.branch, distance: rec.distance,
+                    photo_in: rec.photo_in, photo_out: rec.photo_out 
                   });
                }
            } else {
-               sheet.addRow({ date: dateStr, empId: emp.empId, empName: emp.empName, timeIn: '', timeOut: '', branch: '', distance: '', photoIn: '', photoOut: '' });
+               sheet.addRow({ date: dateStr, emp_id: emp.emp_id, emp_name: emp.emp_name, time_in: '', time_out: '', branch: '', distance: '', photo_in: '', photo_out: '' });
            }
         }
       }
@@ -675,7 +752,7 @@
         var blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         var link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = "รายงานลงเวลา_" + s.replace(/\//g, "-") + "_ถึง_" + e.replace(/\//g, "-") + ".xlsx"; 
+        link.download = "รายงานลงเวลา_" + s + "_ถึง_" + e + ".xlsx"; 
         link.click();
       }).catch(function(e) {
         loading(false);
@@ -684,60 +761,20 @@
       });
     }
 
-    function promptDeletePhotos() {
-      var s = document.getElementById('filterStart').value; 
-      var e = document.getElementById('filterEnd').value;
-      if (!s && !e) return alert('⚠️ กรุณาเลือกวันที่เริ่มต้น หรือ วันที่สิ้นสุด');
-      if(!confirm('ยืนยันการเคลียร์สถานะรูปภาพใช่หรือไม่?')) return;
-      loading(true, 'กำลังดำเนินการ...');
-      
-      callAPI({ action: 'deletePhotos', s: s, e: e }).then(function(res) {
-        loading(false);
-        alert(res.message); 
-        loadReports(); 
-      }).catch(function(err) {
-        loading(false);
-      });
-    }
-
-    function promptBackupData() {
-        var s = document.getElementById('filterStart').value; 
-        var e = document.getElementById('filterEnd').value;
-        var msg = 'ยืนยันการดึงข้อมูลเพื่อสร้าง Google Sheet ไฟล์ใหม่ (Backup) ใช่หรือไม่?\n\n' + (s && e ? 'ตามช่วงเวลา: ' + s + ' ถึง ' + e : '👉 สร้าง Backup ข้อมูลทั้งหมดทุกช่วงเวลา');
+    async function promptDeleteData() {
+        if(!confirm('🚨 คำเตือน! ยืนยันการ "ลบข้อมูลการลงเวลาทั้งหมด" ออกจากตารางใน Supabase ใช่หรือไม่?')) return;
         
-        if(!confirm(msg)) return;
-        loading(true, 'กำลังสร้างไฟล์ Backup โปรดรอสักครู่...');
-        
-        callAPI({ action: 'backupData', s: s, e: e }).then(function(res) {
+        loading(true, 'กำลังเคลียร์ข้อมูล...');
+        try {
+            var { error } = await supabaseClient.from('attendance_data').delete().neq('id', 0);
             loading(false);
-            if(res.success) {
-                alert('✅ ' + res.message + '\n\nระบบกำลังจะเปิดไฟล์ Backup ใหม่ให้ครับ');
-                window.open(res.url, '_blank');
-            } else {
-                alert('❌ ' + res.message);
-            }
-        }).catch(function(e) {
-            loading(false);
-        });
-    }
-
-    function promptDeleteData() {
-        var s = document.getElementById('filterStart').value; 
-        var e = document.getElementById('filterEnd').value;
-        var msg = '🚨 คำเตือน! ยืนยันการ "ลบข้อมูลการลงเวลา" ออกจากระบบ ใช่หรือไม่?\n\n' + (s && e ? 'ช่วงเวลาที่จะถูกลบทิ้ง: ' + s + ' ถึง ' + e : '🔥 ระบบจะลบข้อมูล "ทั้งหมด" ทุกช่วงเวลาออกไป! 🔥') + '\n\n(คำแนะนำ: ควรทำการ Backup ข้อมูลก่อนลบเสมอ)';
-        
-        if(!confirm(msg)) return;
-        if(!s && !e && !confirm('ย้ำอีกครั้ง! คุณกำลังจะล้างข้อมูลการลงเวลาทั้งหมดออกไปจริงๆ แน่ใจหรือไม่?')) return;
-        
-        loading(true, 'กำลังลบข้อมูลออกจากตาราง...');
-        
-        callAPI({ action: 'deleteData', s: s, e: e }).then(function(res) {
-            loading(false);
-            alert('✅ ' + res.message);
+            if(error) throw error;
+            alert('✅ เคลียร์ข้อมูลการเข้างานทั้งหมดเรียบร้อยแล้ว');
             loadReports(); 
-        }).catch(function(e) {
+        } catch(e) {
             loading(false);
-        });
+            alert('เกิดข้อผิดพลาด: ' + e.message);
+        }
     }
 
     function renderUsers(users) {
@@ -746,45 +783,57 @@
       if(!Array.isArray(users) || users.length === 0) return tb.innerHTML = '<tr><td colspan="4" class="text-center py-4">ไม่มีข้อมูล</td></tr>';
       for(var i = 0; i < users.length; i++) {
           var r = users[i];
-          tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'><td class='px-4 py-3'>" + r.username + "</td><td class='px-4 py-3'>" + r.empId + "</td><td class='px-4 py-3'>" + r.empName + "</td><td class='px-4 py-3 text-center'><button onclick=\"manageU('delete', '" + r.username + "')\" class='text-rose-500 px-3 py-1 rounded'>ลบ</button></td></tr>"; 
+          tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'><td class='px-4 py-3'>" + r.username + "</td><td class='px-4 py-3'>" + r.emp_id + "</td><td class='px-4 py-3'>" + r.emp_name + "</td><td class='px-4 py-3 text-center'><button onclick=\"manageU('delete', '" + r.username + "')\" class='text-rose-500 px-3 py-1 rounded'>ลบ</button></td></tr>"; 
       }
     }
 
-    function manageU(action, uName) {
-      var data = { username: uName };
-      if(action === 'add') {
-        if(!tempFaceDescriptor) return alert('กรุณาสแกนใบหน้าพนักงานก่อนบันทึกเข้าระบบครับ!');
-        
-        data = { 
-            username: document.getElementById('addU').value, 
-            password: document.getElementById('addP').value, 
-            empId: document.getElementById('addId').value, 
-            empName: document.getElementById('addName').value,
-            faceData: JSON.stringify(tempFaceDescriptor)
-        };
-        if(!data.username || !data.password || !data.empId || !data.empName) return alert('กรอกข้อมูลให้ครบ');
-      }
-      if(action === 'delete' && !confirm('ยืนยันการลบพนักงาน ' + uName + ' ใช่หรือไม่?')) return;
-      
-      loading(true, 'กำลังบันทึก...');
-      callAPI({ action: 'manageUser', subAction: action, data: data }).then(function(res) {
-          loading(false);
-          alert(res.message); 
+    async function manageU(action, uName) {
+      try {
+        if(action === 'add') {
+          if(!tempFaceDescriptor) return alert('กรุณาสแกนใบหน้าพนักงานก่อนบันทึกเข้าระบบครับ!');
           
-          if(action === 'add' && res.success) {
-              tempFaceDescriptor = null;
-              document.getElementById('addU').value = ''; 
-              document.getElementById('addP').value = ''; 
-              document.getElementById('addId').value = ''; 
-              document.getElementById('addName').value = '';
-              var statusEl = document.getElementById('adminFaceStatus');
-              statusEl.innerText = '❌ ยังไม่มีข้อมูลใบหน้า';
-              statusEl.className = 'text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200';
-          }
-          loadAdminData(); 
-      }).catch(function(err) {
+          var newU = document.getElementById('addU').value;
+          var newP = document.getElementById('addP').value;
+          var newId = document.getElementById('addId').value;
+          var newName = document.getElementById('addName').value;
+
+          if(!newU || !newP || !newId || !newName) return alert('กรอกข้อมูลให้ครบ');
+
+          loading(true, 'กำลังบันทึกพนักงาน...');
+          var { error } = await supabaseClient.from('users').insert([{
+            username: newU,
+            password: newP,
+            emp_id: newId,
+            emp_name: newName,
+            face_data: JSON.stringify(tempFaceDescriptor)
+          }]);
           loading(false);
-      });
+
+          if(error) return alert('เพิ่มพนักงานไม่สำเร็จ: ' + error.message);
+          
+          alert('✅ เพิ่มพนักงานสำเร็จ');
+          tempFaceDescriptor = null;
+          document.getElementById('addU').value = ''; 
+          document.getElementById('addP').value = ''; 
+          document.getElementById('addId').value = ''; 
+          document.getElementById('addName').value = '';
+          var statusEl = document.getElementById('adminFaceStatus');
+          statusEl.innerText = '❌ ยังไม่มีข้อมูลใบหน้า';
+          statusEl.className = 'text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200';
+          loadAdminData();
+        } else if(action === 'delete') {
+          if(!confirm('ยืนยันการลบพนักงาน ' + uName + ' ใช่หรือไม่?')) return;
+          loading(true, 'กำลังลบ...');
+          var { error } = await supabaseClient.from('users').delete().eq('username', uName);
+          loading(false);
+          if(error) return alert('ลบไม่สำเร็จ: ' + error.message);
+          alert('✅ ลบพนักงานสำเร็จ');
+          loadAdminData();
+        }
+      } catch(err) {
+        loading(false);
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+      }
     }
 
     function renderBranches(brs) {
@@ -797,33 +846,38 @@
       }
     }
 
-    function manageBranch(action, bName) {
-      if(action === 'add') {
-        var n = document.getElementById('addBName').value;
-        var l = document.getElementById('addBLat').value;
-        var g = document.getElementById('addBLng').value;
-        var r = document.getElementById('addBRad').value;
-        if(!n || !l || !g || !r) return alert('กรอกข้อมูลสาขาให้ครบ');
-        
-        loading(true, 'เพิ่มสาขา...');
-        callAPI({ action: 'addBranch', name: n, lat: l, lng: g, rad: r }).then(function(res) {
+    async function manageBranch(action, bName) {
+      try {
+        if(action === 'add') {
+          var n = document.getElementById('addBName').value;
+          var l = document.getElementById('addBLat').value;
+          var g = document.getElementById('addBLng').value;
+          var r = document.getElementById('addBRad').value;
+          if(!n || !l || !g || !r) return alert('กรอกข้อมูลสาขาให้ครบ');
+          
+          loading(true, 'เพิ่มสาขา...');
+          var { error } = await supabaseClient.from('branches').insert([{
+            name: n, lat: parseFloat(l), lng: parseFloat(g), radius: parseFloat(r)
+          }]);
           loading(false);
-          alert(res.message); 
+
+          if(error) return alert('เพิ่มสาขาไม่สำเร็จ: ' + error.message);
+          alert('✅ เพิ่มสาขาสำเร็จ');
           loadAdminData(); 
-        }).catch(function(e) {
+        } else if (action === 'delete') {
+          if(!confirm('ลบสาขา ' + bName + ' ใช่หรือไม่?')) return;
+          
+          loading(true, 'ลบสาขา...');
+          var { error } = await supabaseClient.from('branches').delete().eq('name', bName);
           loading(false);
-        });
-      } else if (action === 'delete') {
-        if(!confirm('ลบสาขา ' + bName + ' ใช่หรือไม่?')) return;
-        
-        loading(true, 'ลบสาขา...');
-        callAPI({ action: 'deleteBranch', name: bName }).then(function(res) {
-          loading(false);
-          alert(res.message); 
+
+          if(error) return alert('ลบสาขาไม่สำเร็จ: ' + error.message);
+          alert('✅ ลบสาขาสำเร็จ');
           loadAdminData(); 
-        }).catch(function(e) {
-          loading(false);
-        });
+        }
+      } catch(e) {
+        loading(false);
+        alert('เกิดข้อผิดพลาด: ' + e.message);
       }
     }
 
