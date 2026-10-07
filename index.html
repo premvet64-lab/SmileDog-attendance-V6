@@ -113,7 +113,6 @@
           <button onclick="promptDeletePhotos()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition sm:ml-auto flex-1 sm:flex-none shadow">🗑 ลบรูปเก่า</button>
         </div>
 
-        <!-- ส่วนจัดการฐานข้อมูล สำหรับแอดมิน -->
         <div class="w-full flex flex-wrap gap-2 mt-2 items-center bg-rose-50 p-3 rounded-lg border border-rose-200">
             <span class="font-bold text-rose-700 mr-2 text-sm">⚙️ จัดการพื้นที่ฐานข้อมูล:</span>
             <button onclick="promptDeleteData()" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-medium shadow text-sm">🗑️ เคลียร์ข้อมูลการเข้างานในตาราง</button>
@@ -135,16 +134,26 @@
     <!-- Tab 2: Users -->
     <div id="tabUsers" class="tab-content hidden">
       <div class="bg-blue-50 p-6 rounded-xl border border-blue-100 mb-6">
-        <h4 class="font-bold text-indigo-800 mb-4 flex items-center">➕ ลงทะเบียนพนักงาน (พร้อมสแกนใบหน้า)</h4>
+        <h4 id="formTitle" class="font-bold text-indigo-800 mb-4 flex items-center">➕ ลงทะเบียนพนักงานใหม่ (พร้อมสแกนใบหน้า)</h4>
+        <input type="hidden" id="editUsernameTarget" value="">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div class="space-y-3 bg-white p-4 rounded-lg shadow-sm">
-            <input type="text" id="addU" placeholder="Username" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
-            <input type="text" id="addP" placeholder="Password" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">Username (ใช้สำหรับเข้าสู่ระบบ)</label>
+              <input type="text" id="addU" placeholder="Username" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">Password</label>
+              <input type="text" id="addP" placeholder="Password" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
+            </div>
             <div>
               <label class="block text-xs font-medium text-gray-500 mb-1">รหัสพนักงาน (ระบบรันอัตโนมัติ)</label>
-              <input type="text" id="addId" readonly class="w-full border border-gray-200 bg-gray-100 text-gray-600 p-2.5 rounded-lg outline-none cursor-not-allowed font-bold" placeholder="กำลังสร้างอัตโนมัติ...">
+              <input type="text" id="addId" readonly class="w-full border border-gray-200 bg-gray-100 text-gray-600 p-2.5 rounded-lg outline-none cursor-not-allowed font-bold" placeholder="รหัสอัตโนมัติ">
             </div>
-            <input type="text" id="addName" placeholder="ชื่อ-สกุล" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">ชื่อ-นามสกุล</label>
+              <input type="text" id="addName" placeholder="ชื่อ-สกุล" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
+            </div>
           </div>
           <div class="flex flex-col items-center justify-center bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <video id="adminVideo" autoplay playsinline class="w-48 h-48 bg-black rounded-full object-cover mb-4 transform scale-x-[-1] border-4 border-indigo-100"></video>
@@ -152,10 +161,13 @@
                 <button onclick="startAdminCamera()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-2 py-2 rounded-lg text-xs font-bold transition">1. เปิดกล้อง</button>
                 <button onclick="scanAdminFace()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-2 rounded-lg text-xs font-bold transition shadow-md">2. สแกนจำใบหน้า</button>
             </div>
-            <p id="adminFaceStatus" class="text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200">❌ ยังไม่มีข้อมูลใบหน้า</p>
+            <p id="adminFaceStatus" class="text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200">❌ ยังไม่มีข้อมูลใบหน้าใหม่</p>
           </div>
         </div>
-        <button onclick="manageU('add')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-lg shadow-lg transition">✅ บันทึกพนักงานเข้าระบบ</button>
+        <div class="flex space-x-2">
+          <button id="btnSaveUser" onclick="manageU('add')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-lg shadow-lg transition">✅ บันทึกพนักงานเข้าระบบ</button>
+          <button id="btnCancelEdit" onclick="cancelEditUser()" class="hidden bg-gray-400 hover:bg-gray-500 text-white px-6 py-3 rounded-xl font-bold transition">ยกเลิกแก้ไข</button>
+        </div>
       </div>
       <div class="overflow-x-auto rounded-lg border"><table class="w-full text-sm text-left text-gray-600"><thead class="bg-gray-100 text-gray-700 uppercase text-xs font-bold border-b"><tr><th class="px-4 py-3">Username</th><th class="px-4 py-3">รหัสพนักงาน</th><th class="px-4 py-3">ชื่อ-นามสกุล</th><th class="px-4 py-3 text-center">จัดการ</th></tr></thead><tbody id="userTableBody" class="divide-y"></tbody></table></div>
     </div>
@@ -176,7 +188,7 @@
   <script>
     // ========================================================
     var SUPABASE_URL = "https://nnfeahrjtlyinausphaj.supabase.co"; 
-    var SUPABASE_KEY = "sb_publishable_JeZU7W_dkq_bb79jST2y9A_wx4cu7gk"; 
+    var SUPABASE_KEY = "sb_publishable_JeZU7w_dkq_bb79jST2y9A_wx4cu..."; 
     // ========================================================
 
     var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -451,14 +463,9 @@
     function watchGPS() {
       if(!navigator.geolocation) return document.getElementById('gpsStatus').innerHTML = '<span class="text-red-500">เบราว์เซอร์ไม่รองรับ GPS</span>';
       
-      document.getElementById('gpsStatus').innerHTML = '<span class="text-blue-500 font-medium animate-pulse">📍 กำลังจับสัญญาณ GPS ให้มีความแม่นยำสูง...</span>';
-
-      // ใช้ watchPosition พร้อมตั้งค่าพารามิเตอร์บังคับความแม่นยำสูงสุดเพื่อแก้ปัญหา iOS/Android ไม่ตรงกัน
       navigator.geolocation.watchPosition(function(pos) {
         curLat = pos.coords.latitude; 
         curLng = pos.coords.longitude;
-        var accuracy = pos.coords.accuracy; // ค่าความคลาดเคลื่อนเป็นเมตร
-
         if(branches.length === 0) return document.getElementById('gpsStatus').innerHTML = '<span class="text-red-500">ยังไม่มีการตั้งค่าสาขา</span>';
         
         var nearest = null, minDist = Infinity;
@@ -468,44 +475,21 @@
           if(d < minDist) { minDist = d; nearest = b; }
         }
         curDist = minDist;
-        
-        // เช็คว่าระยะห่างอยู่ในรัศมีสาขาหรือไม่
         isGpsOk = (minDist <= nearest.radius);
         currentBranchName = nearest.name;
         
         var status = document.getElementById('gpsStatus');
-        if(isGpsOk) {
-          status.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">📍 GPS ผ่าน: ' + nearest.name + ' (' + Math.floor(minDist) + 'ม.)</span>';
-        } else {
-          status.innerHTML = '<span class="text-rose-600 font-bold bg-rose-100 px-2 py-1 rounded">❌ อยู่นอกพิกัดสาขา ' + nearest.name + ' (' + Math.floor(minDist) + 'ม., รัศมีที่ตั้งไว้ ' + nearest.radius + 'ม.)</span>';
-        }
+        if(isGpsOk) status.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">📍 GPS ผ่าน: ' + nearest.name + ' (' + Math.floor(minDist) + 'ม.)</span>';
+        else status.innerHTML = '<span class="text-rose-600 font-bold bg-rose-100 px-2 py-1 rounded">❌ GPS นอกพิกัด (' + Math.floor(minDist) + 'ม., รัศมี ' + nearest.radius + 'ม.)</span>';
         checkEnableButtons(); 
       }, function(err) {
-        var errMessage = "ไม่สามารถเข้าถึง GPS ได้";
-        if (err.code === 1) errMessage = "กรุณาอนุญาตให้เว็บไซต์เข้าถึงตำแหน่ง GPS (Permission Denied)";
-        else if (err.code === 2) errMessage = "ไม่สามารถระบุตำแหน่งได้ กรุณาเปิด GPS หรือย้ายที่อับสัญญาณ";
+        var errMessage = "เข้าถึง GPS ไม่ได้";
+        if (err.code === 1) errMessage = "ถูกปฏิเสธสิทธิ์ GPS (Permission Denied)";
         document.getElementById('gpsStatus').innerHTML = '<span class="text-rose-600 font-bold">❌ ' + errMessage + '</span>';
       }, { 
-        enableHighAccuracy: true, // บังคับใช้ GPS ความแม่นยำสูง (แก้ปัญหาความต่างระหว่าง iOS / Android)
-        timeout: 15000,           // รอสัญญาณสูงสุด 15วินาที
-        maximumAge: 0             // ห้ามใช้ค่าพิกัดเก่าในแคช ต้องดึงสดใหม่เสมอ
-      });
-    }
-
-    function getAdminCurrentGPS() { 
-      loading(true, 'กำลังดึงพิกัดปัจจุบันด้วยความแม่นยำสูง...');
-      navigator.geolocation.getCurrentPosition(function(pos) { 
-        loading(false);
-        document.getElementById('addBLat').value = pos.coords.latitude; 
-        document.getElementById('addBLng').value = pos.coords.longitude; 
-        alert('🎯 ดึงพิกัดปัจจุบันสำเร็จ!');
-      }, function(err) {
-        loading(false);
-        alert('ไม่สามารถดึงพิกัดได้ กรุณาเปิด GPS และอนุญาตสิทธิ์การเข้าถึงตำแหน่ง');
-      }, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+        enableHighAccuracy: true, 
+        timeout: 15000, 
+        maximumAge: 0 
       });
     }
 
@@ -612,19 +596,21 @@
 
         allUsers = users || [];
 
-        // คำนวณรหัสพนักงานอัตโนมัติ (เริ่มจาก 0 และบวกเพิ่มทีละ 1)
-        var nextEmpId = 0;
-        if (allUsers.length > 0) {
-          var maxId = -1;
-          for(var i = 0; i < allUsers.length; i++) {
-            var parsed = parseInt(allUsers[i].emp_id, 10);
-            if (!isNaN(parsed) && parsed > maxId) {
-              maxId = parsed;
+        // คำนวณรหัสพนักงานอัตโนมัติ (เฉพาะกรณีเพิ่มใหม่)
+        if (!document.getElementById('editUsernameTarget').value) {
+          var nextEmpId = 0;
+          if (allUsers.length > 0) {
+            var maxId = -1;
+            for(var i = 0; i < allUsers.length; i++) {
+              var parsed = parseInt(allUsers[i].emp_id, 10);
+              if (!isNaN(parsed) && parsed > maxId) {
+                maxId = parsed;
+              }
             }
+            nextEmpId = maxId + 1;
           }
-          nextEmpId = maxId + 1;
+          document.getElementById('addId').value = nextEmpId;
         }
-        document.getElementById('addId').value = nextEmpId;
 
         var selEmp = document.getElementById('filterEmp'); 
         selEmp.innerHTML = '<option value="all">ทั้งหมดทุกคน</option>';
@@ -835,43 +821,115 @@
       if(!Array.isArray(users) || users.length === 0) return tb.innerHTML = '<tr><td colspan="4" class="text-center py-4">ไม่มีข้อมูล</td></tr>';
       for(var i = 0; i < users.length; i++) {
           var r = users[i];
-          tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'><td class='px-4 py-3'>" + r.username + "</td><td class='px-4 py-3'>" + r.emp_id + "</td><td class='px-4 py-3'>" + r.emp_name + "</td><td class='px-4 py-3 text-center'><button onclick=\"manageU('delete', '" + r.username + "')\" class='text-rose-500 px-3 py-1 rounded'>ลบ</button></td></tr>"; 
+          tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'>" +
+            "<td class='px-4 py-3 font-medium text-gray-800'>" + r.username + "</td>" +
+            "<td class='px-4 py-3'>" + r.emp_id + "</td>" +
+            "<td class='px-4 py-3'>" + r.emp_name + "</td>" +
+            "<td class='px-4 py-3 text-center space-x-2'>" +
+              "<button onclick=\"prepareEditUser('" + r.username + "')\" class='bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold'>แก้ไขชื่อ/รูป</button>" +
+              "<button onclick=\"manageU('delete', '" + r.username + "')\" class='bg-rose-500 hover:bg-rose-600 text-white px-3 py-1 rounded text-xs font-bold'>ลบ</button>" +
+            "</td>" +
+          "</tr>"; 
       }
+    }
+
+    function prepareEditUser(uName) {
+      var found = null;
+      for(var i=0; i<allUsers.length; i++) {
+        if(allUsers[i].username === uName) { found = allUsers[i]; break; }
+      }
+      if(!found) return;
+
+      document.getElementById('editUsernameTarget').value = found.username;
+      document.getElementById('addU').value = found.username;
+      document.getElementById('addU').disabled = true; // ล็อคไม่ให้แก้ Username หลัก
+      document.getElementById('addP').value = found.password || '';
+      document.getElementById('addId').value = found.emp_id;
+      document.getElementById('addName').value = found.emp_name;
+
+      document.getElementById('formTitle').innerText = '✏️ แก้ไขข้อมูลพนักงาน: ' + found.username;
+      document.getElementById('btnSaveUser').innerText = '💾 บันทึกการแก้ไข';
+      document.getElementById('btnCancelEdit').classList.remove('hidden');
+
+      var statusEl = document.getElementById('adminFaceStatus');
+      statusEl.innerText = '✅ มีข้อมูลใบหน้าเดิมอยู่แล้ว (หากต้องการเปลี่ยน ให้กดสแกนใหม่)';
+      statusEl.className = 'text-xs text-blue-600 mt-3 font-bold bg-blue-50 px-3 py-1 rounded-full border border-blue-200';
+      
+      // เลื่อนหน้าจอขึ้นมาที่ฟอร์ม
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEditUser() {
+      document.getElementById('editUsernameTarget').value = '';
+      document.getElementById('addU').value = '';
+      document.getElementById('addU').disabled = false;
+      document.getElementById('addP').value = '';
+      document.getElementById('addName').value = '';
+      tempFaceDescriptor = null;
+
+      document.getElementById('formTitle').innerText = '➕ ลงทะเบียนพนักงานใหม่ (พร้อมสแกนใบหน้า)';
+      document.getElementById('btnSaveUser').innerText = '✅ บันทึกพนักงานเข้าระบบ';
+      document.getElementById('btnCancelEdit').classList.add('hidden');
+
+      var statusEl = document.getElementById('adminFaceStatus');
+      statusEl.innerText = '❌ ยังไม่มีข้อมูลใบหน้าใหม่';
+      statusEl.className = 'text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200';
+
+      loadAdminData();
     }
 
     async function manageU(action, uName) {
       try {
+        var editTarget = document.getElementById('editUsernameTarget').value;
+
         if(action === 'add') {
-          if(!tempFaceDescriptor) return alert('กรุณาสแกนใบหน้าพนักงานก่อนบันทึกเข้าระบบครับ!');
-          
           var newU = document.getElementById('addU').value;
           var newP = document.getElementById('addP').value;
           var newId = document.getElementById('addId').value;
           var newName = document.getElementById('addName').value;
 
-          if(!newU || !newP || !newName) return alert('กรอกข้อมูลให้ครบ');
+          if(!newU || !newP || !newName) return alert('กรอกข้อมูลให้ครบถ้วน');
 
-          loading(true, 'กำลังบันทึกพนักงาน...');
-          var { error } = await supabaseClient.from('users').insert([{
-            username: newU,
-            password: newP,
-            emp_id: newId,
-            emp_name: newName,
-            face_data: JSON.stringify(tempFaceDescriptor)
-          }]);
-          loading(false);
+          loading(true, 'กำลังบันทึกข้อมูลพนักงาน...');
 
-          if(error) return alert('เพิ่มพนักงานไม่สำเร็จ: ' + error.message);
-          
-          alert('✅ เพิ่มพนักงานสำเร็จ');
-          tempFaceDescriptor = null;
-          document.getElementById('addU').value = ''; 
-          document.getElementById('addP').value = ''; 
-          document.getElementById('addName').value = '';
-          var statusEl = document.getElementById('adminFaceStatus');
-          statusEl.innerText = '❌ ยังไม่มีข้อมูลใบหน้า';
-          statusEl.className = 'text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200';
-          loadAdminData();
+          if (editTarget) {
+            // โหมดแก้ไขข้อมูลเดิม
+            var updatePayload = {
+              password: newP,
+              emp_name: newName
+            };
+            // ถ้ายมีการสแกนหน้าใหม่เข้ามาด้วย ถึงจะอัปเดต face_data
+            if (tempFaceDescriptor) {
+              updatePayload.face_data = JSON.stringify(tempFaceDescriptor);
+            }
+
+            var { error } = await supabaseClient.from('users').update(updatePayload).eq('username', editTarget);
+            loading(false);
+            if(error) return alert('แก้ไขไม่สำเร็จ: ' + error.message);
+
+            alert('✅ แก้ไขข้อมูลพนักงานสำเร็จ');
+            cancelEditUser();
+          } else {
+            // โหมดเพิ่มพนักงานใหม่
+            if(!tempFaceDescriptor) {
+              loading(false);
+              return alert('กรุณาสแกนใบหน้าพนักงานก่อนบันทึกเข้าระบบครับ!');
+            }
+
+            var { error } = await supabaseClient.from('users').insert([{
+              username: newU,
+              password: newP,
+              emp_id: newId,
+              emp_name: newName,
+              face_data: JSON.stringify(tempFaceDescriptor)
+            }]);
+            loading(false);
+
+            if(error) return alert('เพิ่มพนักงานไม่สำเร็จ: ' + error.message);
+            
+            alert('✅ เพิ่มพนักงานสำเร็จ');
+            cancelEditUser();
+          }
         } else if(action === 'delete') {
           if(!confirm('ยืนยันการลบพนักงาน ' + uName + ' ใช่หรือไม่?')) return;
           loading(true, 'กำลังลบ...');
@@ -932,6 +990,12 @@
       }
     }
 
+    function getAdminCurrentGPS() { 
+      navigator.geolocation.getCurrentPosition(function(pos) { 
+        document.getElementById('addBLat').value = pos.coords.latitude; 
+        document.getElementById('addBLng').value = pos.coords.longitude; 
+      }); 
+    }
   </script>
 </body>
 </html>
