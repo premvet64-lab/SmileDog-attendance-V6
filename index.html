@@ -7,7 +7,6 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 
 <script>
-  // ลงทะเบียน Service Worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('service-worker.js')
@@ -29,8 +28,6 @@
   <script src="https://npmcdn.com/flatpickr/dist/l10n/th.js"></script>
   
   <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
-  
-  <!-- โหลด Supabase JS Library -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style> 
@@ -47,49 +44,29 @@
     <p class="text-gray-400 text-sm mt-2">(รอสักครู่ ใช้เวลาโหลดครั้งแรกเล็กน้อย)</p>
   </div>
 
-  <!-- 1. Login Page -->
-  <div id="pageLogin" class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 hidden">
-    <div class="text-center mb-4">
-      <div class="bg-indigo-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2">
-        <svg class="w-7 h-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-      </div>
-      <h2 class="text-xl font-bold text-gray-800">เข้าสู่ระบบ</h2>
-      <p class="text-xs text-gray-500 mt-0.5">สแกนใบหน้าอัตโนมัติ หรือพิมพ์เข้าสู่ระบบ</p>
-    </div>
-    
-    <div class="space-y-3">
-      <!-- กล้องสแกนหน้าออโต้ -->
-      <div class="relative bg-black rounded-xl overflow-hidden h-44 flex items-center justify-center border-2 border-indigo-100 shadow-inner">
-        <video id="loginVideo" autoplay playsinline class="absolute inset-0 w-full h-full object-cover transform scale-x-[-1]"></video>
-      </div>
-      <p id="loginFaceStatus" class="text-xs text-center font-bold text-indigo-600 animate-pulse">👤 กำลังสแกนใบหน้าอัตโนมัติ...</p>
-
-      <div class="relative flex py-1 items-center">
-        <div class="flex-grow border-t border-gray-200"></div>
-        <span class="flex-shrink mx-4 text-gray-400 text-xs">หรือเข้าสู่ระบบด้วยการพิมพ์</span>
-        <div class="flex-grow border-t border-gray-200"></div>
-      </div>
-
-      <!-- ฟอร์มพิมพ์ Login แบบเดิม -->
-      <div class="space-y-2">
-        <input type="text" id="logUser" placeholder="Username" class="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500">
-        <input type="password" id="logPass" placeholder="Password" class="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500">
-        <button onclick="login()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg text-sm shadow transition">ลงชื่อเข้าใช้</button>
+  <!-- Admin Login Modal -->
+  <div id="adminModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+      <h3 class="font-bold text-lg text-gray-800">เข้าสู่ระบบแอดมิน</h3>
+      <div><label class="block text-sm font-medium text-gray-700 mb-1">Username</label><input type="text" id="adminUser" class="w-full px-3 py-2 border rounded-lg outline-none"></div>
+      <div><label class="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" id="adminPass" class="w-full px-3 py-2 border rounded-lg outline-none"></div>
+      <div class="flex space-x-2">
+        <button onclick="adminLogin()" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-bold">เข้าสู่ระบบ</button>
+        <button onclick="closeAdminLoginModal()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-bold">ยกเลิก</button>
       </div>
     </div>
   </div>
 
-  <!-- 2. User Page -->
-  <div id="pageUser" class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 hidden">
+  <!-- 1. User Page (หน้าหลักสแกนเข้า-ออกงานทันที) -->
+  <div id="pageUser" class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
     <div class="flex justify-between items-center mb-4 border-b pb-4">
-      <div><h3 class="font-bold text-lg text-gray-800" id="uName">Name</h3><p class="text-sm text-gray-500">รหัส: <span id="uId">ID</span></p></div>
-      <button onclick="logout()" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-md">ออกจากระบบ</button>
+      <div><h3 class="font-bold text-lg text-gray-800" id="uName">กำลังสแกนใบหน้า...</h3><p class="text-sm text-gray-500">รหัสพนักงาน: <span id="uId">-</span></p></div>
     </div>
     
     <div class="bg-blue-50 p-3 rounded-lg mb-4 text-center border border-blue-100 flex flex-col space-y-2">
       <p id="gpsStatus" class="text-sm font-medium text-gray-600 bg-white p-2 rounded shadow-sm">📍 กำลังค้นหาพิกัด GPS...</p>
-      <p id="faceStatus" class="text-sm font-medium text-gray-600 bg-white p-2 rounded shadow-sm">👤 กำลังค้นหาใบหน้า...</p>
-      <p id="logoutTimerDisplay" class="text-xs font-bold text-rose-500 hidden">⏳ บังคับออกจากระบบใน: <span id="logoutCountdown">120</span> วินาที</p>
+      <p id="faceStatus" class="text-sm font-medium text-gray-600 bg-white p-2 rounded shadow-sm">👤 กำลังค้นหาใบหน้าพนักงาน...</p>
+      <p id="logoutTimerDisplay" class="text-xs font-bold text-rose-500 hidden">⏳ รีเซ็ตหน้าจอใน: <span id="logoutCountdown">120</span> วินาที</p>
       <p id="faceTimerDisplay" class="text-xs font-bold text-orange-500 hidden">⚠️ ยืนยันหน้าหมดอายุใน: <span id="faceCountdown">30</span> วินาที</p>
     </div>
     
@@ -97,17 +74,22 @@
       <video id="video" autoplay playsinline class="absolute inset-0 w-full h-full object-cover transform scale-x-[-1]"></video>
     </div>
     
-    <div class="grid grid-cols-2 gap-4">
+    <div class="grid grid-cols-2 gap-4 mb-3">
       <button id="btnIn" onclick="record('เข้างาน')" disabled class="bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold shadow-lg transition">เข้างาน</button>
       <button id="btnOut" onclick="record('ออกงาน')" disabled class="bg-rose-500 hover:bg-rose-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold shadow-lg transition">ออกงาน</button>
     </div>
+
+    <!-- ปุ่มเข้าระบบ Admin ใต้ปุ่มลงเวลา -->
+    <button onclick="openAdminLoginModal()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm transition border border-gray-200">
+      ⚙️ เข้าสู่ระบบแอดมิน
+    </button>
   </div>
 
-  <!-- 3. Admin Page -->
+  <!-- 2. Admin Page -->
   <div id="pageAdmin" class="w-full max-w-6xl bg-white rounded-2xl shadow-xl p-6 hidden">
     <div class="flex flex-col sm:flex-row justify-between items-center mb-6 border-b pb-4">
       <h2 class="text-2xl font-bold text-gray-800">แผงควบคุม (Admin)</h2>
-      <button onclick="logout()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium mt-4 sm:mt-0">ออกจากระบบ</button>
+      <button onclick="logoutAdmin()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium mt-4 sm:mt-0">ออกจากระบบแอดมิน</button>
     </div>
     <div class="flex space-x-2 border-b mb-6 overflow-x-auto">
       <button onclick="adminTab('tabReport')" id="btnTabReport" class="admin-tab px-4 py-2 text-indigo-600 border-b-2 border-indigo-600 font-bold whitespace-nowrap">รายงาน</button>
@@ -155,7 +137,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div class="space-y-3 bg-white p-4 rounded-lg shadow-sm">
             <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1">Username (ใช้สำหรับเข้าสู่ระบบ)</label>
+              <label class="block text-xs font-medium text-gray-500 mb-1">Username (ใช้สำหรับอ้างอิง)</label>
               <input type="text" id="addU" placeholder="Username" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
             </div>
             <div>
@@ -228,18 +210,21 @@
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
       ]).then(async function() {
         document.getElementById('loading').style.display = 'none';
-        document.getElementById('pageLogin').classList.remove('hidden');
+        document.getElementById('pageUser').classList.remove('hidden');
         await preloadUsersForLogin();
-        startAutoFaceLogin();
+        startCamera();
+        loadUserBranches();
+        startContinuousFaceRecognition();
+        startIdleTimer();
       }).catch(function(e) {
         alert("โหลด AI ไม่สำเร็จ กรุณาเช็คอินเทอร์เน็ต: " + e.message);
       });
     });
 
     var user = null, branches = [], allUsers = [], cachedLoginUsers = [], curLat = 0, curLng = 0, curDist = 0, currentBranchName = '';
-    var videoStream = null, adminVideoStream = null, loginVideoStream = null;
+    var videoStream = null, adminVideoStream = null;
     var isGpsOk = false, isFaceOk = false;
-    var faceScanInterval = null, autoLoginInterval = null;
+    var continuousFaceInterval = null;
     var tempFaceDescriptor = null;
 
     var idleTimeout = null;
@@ -255,7 +240,7 @@
     }
     
     function switchPage(id) {
-      var pages = ['pageLogin', 'pageUser', 'pageAdmin'];
+      var pages = ['pageUser', 'pageAdmin'];
       for(var i = 0; i < pages.length; i++) {
         document.getElementById(pages[i]).classList.add('hidden');
       }
@@ -279,135 +264,110 @@
       }
     }
 
-    function startAutoFaceLogin() {
-      var video = document.getElementById('loginVideo');
-      var statusEl = document.getElementById('loginFaceStatus');
+    // เริ่มระบบสแกนหน้าต่อเนื่องที่หน้าหลักอัตโนมัติ
+    function startContinuousFaceRecognition() {
+      var video = document.getElementById('video');
+      var statusEl = document.getElementById('faceStatus');
+      var nameEl = document.getElementById('uName');
+      var idEl = document.getElementById('uId');
 
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).then(function(stream) {
-        loginVideoStream = stream;
-        video.srcObject = stream;
+      if (continuousFaceInterval) clearInterval(continuousFaceInterval);
+
+      continuousFaceInterval = setInterval(async function() {
+        if (!video.videoWidth || cachedLoginUsers.length === 0 || isFaceOk) return;
         
-        if (autoLoginInterval) clearInterval(autoLoginInterval);
+        try {
+          var detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+          if (detection) {
+            for (var i = 0; i < cachedLoginUsers.length; i++) {
+              var emp = cachedLoginUsers[i];
+              if (emp.face_data) {
+                var distance = faceapi.euclideanDistance(emp.face_data, detection.descriptor);
 
-        autoLoginInterval = setInterval(async function() {
-          if (!video.videoWidth || cachedLoginUsers.length === 0) return;
-          
-          try {
-            var detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-            if (detection) {
-              for (var i = 0; i < cachedLoginUsers.length; i++) {
-                var emp = cachedLoginUsers[i];
-                if (emp.face_data) {
-                  var distance = faceapi.euclideanDistance(emp.face_data, detection.descriptor);
-
-                  if (distance <= 0.48) {
-                    clearInterval(autoLoginInterval);
-                    autoLoginInterval = null;
-                    if (loginVideoStream) loginVideoStream.getTracks().forEach(function(t) { t.stop(); });
-
-                    statusEl.innerHTML = '<span class="text-emerald-600 font-bold">✅ ยินดีต้อนรับคุณ ' + emp.emp_name + '</span>';
-                    
-                    setTimeout(function() {
-                      user = { role: 'user', empId: emp.emp_id.toString(), empName: emp.emp_name, faceData: JSON.stringify(Array.from(emp.face_data)) };
-                      switchPage('pageUser'); 
-                      document.getElementById('uName').innerText = user.empName; 
-                      document.getElementById('uId').innerText = user.empId; 
-                      startCamera(); 
-                      loadUserBranches(); 
-                      startFaceVerification(); 
-                      startIdleTimer();
-                    }, 600);
-                    return;
-                  }
+                if (distance <= 0.48) {
+                  isFaceOk = true;
+                  user = { empId: emp.emp_id.toString(), empName: emp.emp_name, faceData: JSON.stringify(Array.from(emp.face_data)) };
+                  
+                  nameEl.innerText = user.empName;
+                  idEl.innerText = user.empId;
+                  statusEl.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">✅ ยืนยันตัวตนผ่าน! (AI)</span>';
+                  
+                  checkEnableButtons();
+                  startFaceExpiryTimer();
+                  return;
                 }
               }
             }
-          } catch(err) {
-            console.log(err);
           }
-        }, 800);
-
-      }).catch(function(e) { 
-        statusEl.innerHTML = '<span class="text-rose-500 font-bold">❌ ไม่สามารถเปิดกล้องได้</span>';
-      });
+        } catch(err) {
+          console.log(err);
+        }
+      }, 1000);
     }
 
-    async function login() {
-      var u = document.getElementById('logUser').value.trim();
-      var p = document.getElementById('logPass').value.trim();
-      if(!u || !p) return alert('กรอกข้อมูลให้ครบ');
-      loading(true, 'ตรวจสอบข้อมูล...');
-      
-      try {
-        if (u === 'admin' && p === '12345') {
-          loading(false);
-          if (autoLoginInterval) { clearInterval(autoLoginInterval); autoLoginInterval = null; }
-          if (loginVideoStream) loginVideoStream.getTracks().forEach(function(t) { t.stop(); });
-          user = { role: 'admin', empName: 'Admin' };
-          switchPage('pageAdmin'); 
-          loadAdminData(); 
-          return;
-        }
+    function openAdminLoginModal() {
+      document.getElementById('adminModal').classList.remove('hidden');
+    }
+    function closeAdminLoginModal() {
+      document.getElementById('adminModal').classList.add('hidden');
+    }
 
-        var { data, error } = await supabaseClient.from('users').select('*').eq('username', u).eq('password', p).single();
-        loading(false);
-
-        if (error || !data) {
-          return alert('ชื่อผู้ใช้ หรือ รหัสผ่านไม่ถูกต้อง');
-        }
-
-        if (autoLoginInterval) { clearInterval(autoLoginInterval); autoLoginInterval = null; }
-        if (loginVideoStream) loginVideoStream.getTracks().forEach(function(t) { t.stop(); });
-
-        user = { role: 'user', empId: data.emp_id.toString(), empName: data.emp_name, faceData: data.face_data };
-        switchPage('pageUser'); 
-        document.getElementById('uName').innerText = user.empName; 
-        document.getElementById('uId').innerText = user.empId; 
-        startCamera(); 
-        loadUserBranches(); 
-        startFaceVerification(); 
-        startIdleTimer(); 
-      } catch (err) {
-        loading(false); 
-        alert('เชื่อมต่อล้มเหลว: ' + err.message);
+    async function adminLogin() {
+      var u = document.getElementById('adminUser').value.trim();
+      var p = document.getElementById('adminPass').value.trim();
+      if (u === 'admin' && p === '12345') {
+        closeAdminLoginModal();
+        document.getElementById('adminUser').value = '';
+        document.getElementById('adminPass').value = '';
+        if (continuousFaceInterval) { clearInterval(continuousFaceInterval); continuousFaceInterval = null; }
+        if (videoStream) { videoStream.getTracks().forEach(function(t) { t.stop(); }); }
+        switchPage('pageAdmin'); 
+        loadAdminData(); 
+      } else {
+        alert('รหัสผ่านแอดมินไม่ถูกต้อง');
       }
     }
 
-    function logout(reason) { 
+    function logoutAdmin() {
+      switchPage('pageUser');
+      document.getElementById('uName').innerText = 'กำลังสแกนใบหน้า...';
+      document.getElementById('uId').innerText = '-';
+      user = null; isFaceOk = false;
+      checkEnableButtons();
+      startCamera();
+      preloadUsersForLogin().then(function() {
+        startContinuousFaceRecognition();
+      });
+    }
+
+    function resetAppToDefault(reason) { 
       if (reason) alert(reason);
       
       clearAllTimers();
       user = null; isGpsOk = false; isFaceOk = false;
       if(videoStream) { videoStream.getTracks().forEach(function(t) { t.stop(); }); }
-      if(adminVideoStream) { adminVideoStream.getTracks().forEach(function(t) { t.stop(); }); }
-      if(faceScanInterval) clearInterval(faceScanInterval);
       
       document.getElementById('logoutTimerDisplay').classList.add('hidden');
       document.getElementById('faceTimerDisplay').classList.add('hidden');
       document.getElementById('btnIn').disabled = true;
       document.getElementById('btnOut').disabled = true;
+      document.getElementById('uName').innerText = 'กำลังสแกนใบหน้า...';
+      document.getElementById('uId').innerText = '-';
+      document.getElementById('faceStatus').innerHTML = '<span class="text-medium text-gray-600">👤 กำลังค้นหาใบหน้าพนักงาน...</span>';
 
-      switchPage('pageLogin'); 
-      document.getElementById('logUser').value = ''; 
-      document.getElementById('logPass').value = '';
-      document.getElementById('loginFaceStatus').innerHTML = '<span class="text-indigo-600 font-bold animate-pulse">👤 กำลังสแกนใบหน้าอัตโนมัติ...</span>';
-      
+      switchPage('pageUser'); 
+      startCamera();
       preloadUsersForLogin().then(function() {
-        startAutoFaceLogin();
+        startContinuousFaceRecognition();
+        startIdleTimer();
       });
     }
 
     function clearAllTimers() {
       if (idleTimeout) clearTimeout(idleTimeout);
       if (faceExpiryTimeout) clearTimeout(faceExpiryTimeout);
-      if (faceCountdownInterval) {
-          clearInterval(faceCountdownInterval);
-          faceCountdownInterval = null;
-      }
-      if (logoutCountdownInterval) {
-          clearInterval(logoutCountdownInterval);
-          logoutCountdownInterval = null;
-      }
+      if (faceCountdownInterval) { clearInterval(faceCountdownInterval); faceCountdownInterval = null; }
+      if (logoutCountdownInterval) { clearInterval(logoutCountdownInterval); logoutCountdownInterval = null; }
     }
 
     function startIdleTimer() {
@@ -420,16 +380,13 @@
             timeLeft--;
             document.getElementById('logoutCountdown').innerText = timeLeft;
             if (timeLeft <= 0) {
-                logout('หมดเวลาการใช้งาน (2 นาที) ระบบบังคับออกจากระบบเพื่อความปลอดภัย');
+                resetAppToDefault('หมดเวลาการใช้งาน (2 นาที) รีเซ็ตหน้าจอเพื่อความปลอดภัย');
             }
         }, 1000);
     }
 
     function startFaceExpiryTimer() {
-        if (faceCountdownInterval) {
-            clearInterval(faceCountdownInterval);
-            faceCountdownInterval = null;
-        }
+        if (faceCountdownInterval) { clearInterval(faceCountdownInterval); faceCountdownInterval = null; }
         
         var timeLeft = FACE_EXPIRY_LIMIT;
         var displayEl = document.getElementById('faceTimerDisplay');
@@ -448,18 +405,19 @@
                 displayEl.classList.add('hidden');
                 
                 isFaceOk = false;
+                user = null;
+                document.getElementById('uName').innerText = 'กำลังสแกนใบหน้า...';
+                document.getElementById('uId').innerText = '-';
                 checkEnableButtons();
-                alert('⏳ หมดเวลาบันทึกข้อมูล (30 วินาที) กรุณาสแกนใบหน้าใหม่อีกครั้ง');
-                startFaceVerification(); 
+                alert('⏳ หมดเวลายืนยันตัวตน (30 วินาที) กรุณาสแกนใบหน้าใหม่อีกครั้ง');
+                startContinuousFaceRecognition(); 
             }
         }, 1000);
     }
 
     function resetTimers() {
-        if (user && user.role === 'user') {
-            if (logoutCountdownInterval) {
-                clearInterval(logoutCountdownInterval);
-            }
+        if (!document.getElementById('pageUser').classList.contains('hidden')) {
+            if (logoutCountdownInterval) { clearInterval(logoutCountdownInterval); }
             startIdleTimer();
         }
     }
@@ -467,49 +425,6 @@
     document.addEventListener('mousemove', resetTimers);
     document.addEventListener('keypress', resetTimers);
     document.addEventListener('touchstart', resetTimers);
-
-    function startFaceVerification() {
-      var video = document.getElementById('video');
-      var statusEl = document.getElementById('faceStatus');
-      isFaceOk = false;
-      checkEnableButtons();
-      
-      if (faceScanInterval) {
-          clearInterval(faceScanInterval);
-          faceScanInterval = null;
-      }
-      if (faceCountdownInterval) {
-          clearInterval(faceCountdownInterval);
-          faceCountdownInterval = null;
-          document.getElementById('faceTimerDisplay').classList.add('hidden');
-      }
-      
-      if(!user.faceData || user.faceData === "") {
-          statusEl.innerHTML = '<span class="text-rose-600 font-bold bg-rose-100 px-2 py-1 rounded">❌ ไม่มีข้อมูลใบหน้า (ติดต่อแอดมิน)</span>';
-          return;
-      }
-      
-      var savedDescriptor = new Float32Array(JSON.parse(user.faceData));
-      statusEl.innerHTML = '<span class="text-orange-500 font-bold animate-pulse">👤 มองกล้องเพื่อยืนยันตัวตน...</span>';
-      
-      faceScanInterval = setInterval(function() {
-          if(!video.videoWidth) return;
-          faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor().then(function(detection) {
-              if(detection) {
-                  var distance = faceapi.euclideanDistance(savedDescriptor, detection.descriptor);
-                  if(distance <= 0.48) { 
-                      isFaceOk = true;
-                      statusEl.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">✅ ยืนยันตัวตนผ่าน! (AI)</span>';
-                      checkEnableButtons(); 
-                      
-                      clearInterval(faceScanInterval); 
-                      faceScanInterval = null;
-                      startFaceExpiryTimer(); 
-                  }
-              }
-          }).catch(function(e){});
-      }, 1000); 
-    }
 
     function checkEnableButtons() {
        if (isGpsOk && isFaceOk) {
@@ -670,12 +585,12 @@
         }
 
         loading(false);
-        logout('✅ บันทึกเวลา ' + type + ' (' + currentBranchName + ') สำเร็จ! ⚡\nระบบจะออกจากระบบอัตโนมัติเพื่อความปลอดภัย');
+        resetAppToDefault('✅ บันทึกเวลา ' + type + ' (' + currentBranchName + ') สำเร็จ! ⚡');
       } catch (err) {
         loading(false); 
         alert('ผิดพลาด: ' + err.message); 
         startIdleTimer();
-        startFaceVerification();
+        startContinuousFaceRecognition();
       }
     }
 
