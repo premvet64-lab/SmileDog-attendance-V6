@@ -47,19 +47,35 @@
     <p class="text-gray-400 text-sm mt-2">(รอสักครู่ ใช้เวลาโหลดครั้งแรกเล็กน้อย)</p>
   </div>
 
-  <!-- 1. Login Page -->
+  <!-- 1. Login Page (รองรับทั้งสแกนหน้าออโต้ และพิมพ์รหัสผ่าน) -->
   <div id="pageLogin" class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 hidden">
-    <div class="text-center mb-6">
-      <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-        <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+    <div class="text-center mb-4">
+      <div class="bg-indigo-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2">
+        <svg class="w-7 h-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
       </div>
-      <h2 class="text-2xl font-bold text-gray-800">เข้าสู่ระบบ</h2>
-      <p class="text-sm text-gray-500 mt-1">ระบบลงเวลาด้วย AI & GPS</p>
+      <h2 class="text-xl font-bold text-gray-800">เข้าสู่ระบบ</h2>
+      <p class="text-xs text-gray-500 mt-0.5">สแกนใบหน้าอัตโนมัติ หรือพิมพ์เข้าสู่ระบบ</p>
     </div>
-    <div class="space-y-4">
-      <div><label class="block text-sm font-medium text-gray-700 mb-1">Username</label><input type="text" id="logUser" class="w-full px-4 py-3 border rounded-lg outline-none"></div>
-      <div><label class="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" id="logPass" class="w-full px-4 py-3 border rounded-lg outline-none"></div>
-      <button onclick="login()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 shadow-md">ลงชื่อเข้าใช้</button>
+    
+    <div class="space-y-3">
+      <!-- กล้องสแกนหน้าออโต้ -->
+      <div class="relative bg-black rounded-xl overflow-hidden h-44 flex items-center justify-center border-2 border-indigo-100 shadow-inner">
+        <video id="loginVideo" autoplay playsinline class="absolute inset-0 w-full h-full object-cover transform scale-x-[-1]"></video>
+      </div>
+      <p id="loginFaceStatus" class="text-xs text-center font-bold text-indigo-600 animate-pulse">👤 กำลังสแกนใบหน้าอัตโนมัติ...</p>
+
+      <div class="relative flex py-1 items-center">
+        <div class="flex-grow border-t border-gray-200"></div>
+        <span class="flex-shrink mx-4 text-gray-400 text-xs">หรือเข้าสู่ระบบด้วยการพิมพ์</span>
+        <div class="flex-grow border-t border-gray-200"></div>
+      </div>
+
+      <!-- ฟอร์มพิมพ์ Login แบบเดิม -->
+      <div class="space-y-2">
+        <input type="text" id="logUser" placeholder="Username" class="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500">
+        <input type="password" id="logPass" placeholder="Password" class="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500">
+        <button onclick="login()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg text-sm shadow transition">ลงชื่อเข้าใช้</button>
+      </div>
     </div>
   </div>
 
@@ -196,7 +212,7 @@
   <script>
     // ========================================================
     var SUPABASE_URL = "https://nnfeahrjtlyinausphaj.supabase.co"; 
-    var SUPABASE_KEY = "sb_publishable_JeZU7W_dkq_bb79jST2y9A_wx4cu7gk"; 
+    var SUPABASE_KEY = "sb_publishable_JeZU7w_dkq_bb79jST2y9A_wx4cu7gk"; 
     // ========================================================
 
     var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -210,18 +226,20 @@
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-      ]).then(function() {
+      ]).then(async function() {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('pageLogin').classList.remove('hidden');
+        await preloadUsersForLogin();
+        startAutoFaceLogin();
       }).catch(function(e) {
         alert("โหลด AI ไม่สำเร็จ กรุณาเช็คอินเทอร์เน็ต: " + e.message);
       });
     });
 
-    var user = null, branches = [], allUsers = [], curLat = 0, curLng = 0, curDist = 0, currentBranchName = '';
-    var videoStream = null, adminVideoStream = null;
+    var user = null, branches = [], allUsers = [], cachedLoginUsers = [], curLat = 0, curLng = 0, curDist = 0, currentBranchName = '';
+    var videoStream = null, adminVideoStream = null, loginVideoStream = null;
     var isGpsOk = false, isFaceOk = false;
-    var faceScanInterval = null;
+    var faceScanInterval = null, autoLoginInterval = null;
     var tempFaceDescriptor = null;
 
     var idleTimeout = null;
@@ -244,16 +262,88 @@
       document.getElementById(id).classList.remove('hidden');
     }
 
+    async function preloadUsersForLogin() {
+      try {
+        var { data, error } = await supabaseClient.from('users').select('*');
+        if (!error && data) {
+          cachedLoginUsers = data.map(function(emp) {
+            return {
+              emp_id: emp.emp_id,
+              emp_name: emp.emp_name,
+              face_data: emp.face_data ? new Float32Array(JSON.parse(emp.face_data)) : null
+            };
+          });
+        }
+      } catch (err) {
+        console.log("Preload error:", err);
+      }
+    }
+
+    function startAutoFaceLogin() {
+      var video = document.getElementById('loginVideo');
+      var statusEl = document.getElementById('loginFaceStatus');
+
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).then(function(stream) {
+        loginVideoStream = stream;
+        video.srcObject = stream;
+        
+        if (autoLoginInterval) clearInterval(autoLoginInterval);
+
+        autoLoginInterval = setInterval(async function() {
+          if (!video.videoWidth || cachedLoginUsers.length === 0) return;
+          
+          try {
+            var detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+            if (detection) {
+              for (var i = 0; i < cachedLoginUsers.length; i++) {
+                var emp = cachedLoginUsers[i];
+                if (emp.face_data) {
+                  var distance = faceapi.euclideanDistance(emp.face_data, detection.descriptor);
+
+                  if (distance <= 0.48) {
+                    clearInterval(autoLoginInterval);
+                    autoLoginInterval = null;
+                    if (loginVideoStream) loginVideoStream.getTracks().forEach(function(t) { t.stop(); });
+
+                    statusEl.innerHTML = '<span class="text-emerald-600 font-bold">✅ ยินดีต้อนรับคุณ ' + emp.emp_name + '</span>';
+                    
+                    setTimeout(function() {
+                      user = { role: 'user', empId: emp.emp_id.toString(), empName: emp.emp_name, faceData: JSON.stringify(Array.from(emp.face_data)) };
+                      switchPage('pageUser'); 
+                      document.getElementById('uName').innerText = user.empName; 
+                      document.getElementById('uId').innerText = user.empId; 
+                      startCamera(); 
+                      loadUserBranches(); 
+                      startFaceVerification(); 
+                      startIdleTimer();
+                    }, 600);
+                    return;
+                  }
+                }
+              }
+            }
+          } catch(err) {
+            console.log(err);
+          }
+        }, 800);
+
+      }).catch(function(e) { 
+        statusEl.innerHTML = '<span class="text-rose-500 font-bold">❌ ไม่สามารถเปิดกล้องได้</span>';
+      });
+    }
+
     async function login() {
-      var u = document.getElementById('logUser').value;
-      var p = document.getElementById('logPass').value;
+      var u = document.getElementById('logUser').value.trim();
+      var p = document.getElementById('logPass').value.trim();
       if(!u || !p) return alert('กรอกข้อมูลให้ครบ');
       loading(true, 'ตรวจสอบข้อมูล...');
       
       try {
-        // เปลี่ยนรหัสผ่านแอดมินจาก admin1234 เป็น 12345
+        // แอดมินใช้รหัส 12345 ตามที่คุณกำหนด
         if (u === 'admin' && p === '12345') {
           loading(false);
+          if (autoLoginInterval) { clearInterval(autoLoginInterval); autoLoginInterval = null; }
+          if (loginVideoStream) loginVideoStream.getTracks().forEach(function(t) { t.stop(); });
           user = { role: 'admin', empName: 'Admin' };
           switchPage('pageAdmin'); 
           loadAdminData(); 
@@ -266,6 +356,9 @@
         if (error || !data) {
           return alert('ชื่อผู้ใช้ หรือ รหัสผ่านไม่ถูกต้อง');
         }
+
+        if (autoLoginInterval) { clearInterval(autoLoginInterval); autoLoginInterval = null; }
+        if (loginVideoStream) loginVideoStream.getTracks().forEach(function(t) { t.stop(); });
 
         user = { role: 'user', empId: data.emp_id.toString(), empName: data.emp_name, faceData: data.face_data };
         switchPage('pageUser'); 
@@ -298,6 +391,11 @@
       switchPage('pageLogin'); 
       document.getElementById('logUser').value = ''; 
       document.getElementById('logPass').value = '';
+      document.getElementById('loginFaceStatus').innerHTML = '<span class="text-indigo-600 font-bold animate-pulse">👤 กำลังสแกนใบหน้าอัตโนมัติ...</span>';
+      
+      preloadUsersForLogin().then(function() {
+        startAutoFaceLogin();
+      });
     }
 
     function clearAllTimers() {
@@ -400,7 +498,7 @@
           faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor().then(function(detection) {
               if(detection) {
                   var distance = faceapi.euclideanDistance(savedDescriptor, detection.descriptor);
-                  if(distance <= 0.45) { 
+                  if(distance <= 0.48) { 
                       isFaceOk = true;
                       statusEl.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">✅ ยืนยันตัวตนผ่าน! (AI)</span>';
                       checkEnableButtons(); 
@@ -605,7 +703,6 @@
 
         allUsers = users || [];
 
-        // เรียงลำดับพนักงานตามรหัสจากน้อยไปมาก (emp_id)
         allUsers.sort(function(a, b) {
           return parseInt(a.emp_id, 10) - parseInt(b.emp_id, 10);
         });
