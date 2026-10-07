@@ -140,7 +140,10 @@
           <div class="space-y-3 bg-white p-4 rounded-lg shadow-sm">
             <input type="text" id="addU" placeholder="Username" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
             <input type="text" id="addP" placeholder="Password" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
-            <input type="text" id="addId" placeholder="รหัสพนักงาน" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">รหัสพนักงาน (ระบบรันอัตโนมัติ)</label>
+              <input type="text" id="addId" readonly class="w-full border border-gray-200 bg-gray-100 text-gray-600 p-2.5 rounded-lg outline-none cursor-not-allowed font-bold" placeholder="กำลังสร้างอัตโนมัติ...">
+            </div>
             <input type="text" id="addName" placeholder="ชื่อ-สกุล" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
           </div>
           <div class="flex flex-col items-center justify-center bg-white p-4 rounded-lg shadow-sm border border-gray-200">
@@ -172,9 +175,8 @@
 
   <script>
     // ========================================================
-    // ตั้งค่าเชื่อมต่อ Supabase ของคุณ (นำ Project URL และ Publishable key มาใส่ที่นี่)
     var SUPABASE_URL = "https://nnfeahrjtlyinausphaj.supabase.co"; 
-    var SUPABASE_KEY = "sb_publishable_JeZU7W_dkq_bb79jST2y9A_wx4cu7gk"; 
+    var SUPABASE_KEY = "sb_publishable_JeZU7w_dkq_bb79jST2y9A_wx4cu..."; 
     // ========================================================
 
     var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -502,7 +504,6 @@
           }]);
           if(error) throw error;
         } else {
-          // ออกงาน: ค้นหาแถวของวันนี้ที่ยังไม่มีเวลาออก
           var { data: existing, error: errFind } = await supabaseClient.from('attendance_data')
             .select('*')
             .eq('date', dateStr)
@@ -524,7 +525,6 @@
               .eq('id', row.id);
             if(errUp) throw errUp;
           } else {
-            // ถ้าไม่พบรายการเข้างานก่อนหน้า ให้บันทึกเป็นรายการออกงานใหม่
             var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
               date: dateStr,
               emp_id: user.empId,
@@ -572,6 +572,21 @@
         loading(false);
 
         allUsers = users || [];
+
+        // คำนวณรหัสพนักงานอัตโนมัติ (เริ่มจาก 0 และบวกเพิ่มทีละ 1)
+        var nextEmpId = 0;
+        if (allUsers.length > 0) {
+          var maxId = -1;
+          for(var i = 0; i < allUsers.length; i++) {
+            var parsed = parseInt(allUsers[i].emp_id, 10);
+            if (!isNaN(parsed) && parsed > maxId) {
+              maxId = parsed;
+            }
+          }
+          nextEmpId = maxId + 1;
+        }
+        document.getElementById('addId').value = nextEmpId;
+
         var selEmp = document.getElementById('filterEmp'); 
         selEmp.innerHTML = '<option value="all">ทั้งหมดทุกคน</option>';
         for(var i = 0; i < allUsers.length; i++) {
@@ -608,11 +623,9 @@
         loading(false);
         if(error) throw error;
 
-        // กรองข้อมูลฝั่ง Client ตามเงื่อนไขวันที่ พนักงาน และสาขา
         reportData = (res || []).filter(function(r) {
           var passDate = true;
           if (s && e && r.date) {
-            // แปลง วัน/เดือน/ปี เป็น object วันที่เพื่อเทียบช่วงเวลา
             var parts = r.date.split('/');
             if(parts.length === 3) {
               var rDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
@@ -797,7 +810,7 @@
           var newId = document.getElementById('addId').value;
           var newName = document.getElementById('addName').value;
 
-          if(!newU || !newP || !newId || !newName) return alert('กรอกข้อมูลให้ครบ');
+          if(!newU || !newP || !newName) return alert('กรอกข้อมูลให้ครบ');
 
           loading(true, 'กำลังบันทึกพนักงาน...');
           var { error } = await supabaseClient.from('users').insert([{
@@ -815,7 +828,6 @@
           tempFaceDescriptor = null;
           document.getElementById('addU').value = ''; 
           document.getElementById('addP').value = ''; 
-          document.getElementById('addId').value = ''; 
           document.getElementById('addName').value = '';
           var statusEl = document.getElementById('adminFaceStatus');
           statusEl.innerText = '❌ ยังไม่มีข้อมูลใบหน้า';
