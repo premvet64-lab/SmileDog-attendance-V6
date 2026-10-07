@@ -169,7 +169,7 @@
           <button id="btnCancelEdit" onclick="cancelEditUser()" class="hidden bg-gray-400 hover:bg-gray-500 text-white px-6 py-3 rounded-xl font-bold transition">ยกเลิกแก้ไข</button>
         </div>
       </div>
-      <div class="overflow-x-auto rounded-lg border"><table class="w-full text-sm text-left text-gray-600"><thead class="bg-gray-100 text-gray-700 uppercase text-xs font-bold border-b"><tr><th class="px-4 py-3">Username</th><th class="px-4 py-3">รหัสพนักงาน</th><th class="px-4 py-3">ชื่อ-นามสกุล</th><th class="px-4 py-3 text-center">จัดการ</th></tr></thead><tbody id="userTableBody" class="divide-y"></tbody></table></div>
+      <div class="overflow-x-auto rounded-lg border"><table class="w-full text-sm text-left text-gray-600"><thead class="bg-gray-100 text-gray-700 uppercase text-xs font-bold border-b"><tr><th class="px-4 py-3">USERNAME</th><th class="px-4 py-3">รหัสพนักงาน</th><th class="px-4 py-3">ชื่อ-นามสกุล</th><th class="px-4 py-3 text-center">จัดการ</th></tr></thead><tbody id="userTableBody" class="divide-y"></tbody></table></div>
     </div>
     
     <!-- Tab 3: Branches -->
@@ -251,6 +251,7 @@
       loading(true, 'ตรวจสอบข้อมูล...');
       
       try {
+        // เปลี่ยนรหัสผ่านแอดมินจาก admin1234 เป็น 12345
         if (u === 'admin' && p === '12345') {
           loading(false);
           user = { role: 'admin', empName: 'Admin' };
@@ -603,6 +604,11 @@
         loading(false);
 
         allUsers = users || [];
+
+        // เรียงลำดับพนักงานตามรหัสจากน้อยไปมาก (emp_id)
+        allUsers.sort(function(a, b) {
+          return parseInt(a.emp_id, 10) - parseInt(b.emp_id, 10);
+        });
 
         if (!document.getElementById('editUsernameTarget').value) {
           var nextEmpId = 0;
@@ -1007,7 +1013,6 @@
           loading(true, 'กำลังบันทึกสาขา...');
 
           if (editTargetBranch) {
-            // โหมดแก้ไขสาขาเดิม
             var { error } = await supabaseClient.from('branches')
               .update({ name: n, lat: parseFloat(l), lng: parseFloat(g), radius: parseFloat(r) })
               .eq('name', editTargetBranch);
@@ -1018,7 +1023,6 @@
             cancelEditBranch();
             loadAdminData();
           } else {
-            // โหมดเพิ่มสาขาใหม่
             var { error } = await supabaseClient.from('branches').insert([{
               name: n, lat: parseFloat(l), lng: parseFloat(g), radius: parseFloat(r)
             }]);
