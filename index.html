@@ -37,8 +37,8 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 relative">
 
-  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.6.5 -->
-  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.6.5</div>
+  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.6.8 -->
+  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.6.8</div>
 
   <!-- Loading -->
   <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
@@ -143,6 +143,23 @@
         <div><label class="block text-xs font-medium text-gray-600 mb-1">พนักงาน</label><select id="filterEmp" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[150px]"><option value="all">ทั้งหมดทุกคน</option></select></div>
         <div><label class="block text-xs font-medium text-gray-600 mb-1">สาขา</label><select id="filterBranch" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[150px]"><option value="all">รวมทุกสาขา</option></select></div>
         
+        <!-- เพิ่มตัวเลือกการเรียงลำดับ (วันที่ & รหัสพนักงาน) -->
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">เรียงตามวันที่</label>
+          <select id="sortByDate" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[130px]">
+            <option value="desc">ใหม่ไปเก่า (มากไปน้อย)</option>
+            <option value="asc">เก่าไปใหม่ (น้อยไปมาก)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">เรียงตามรหัสพนักงาน</label>
+          <select id="sortByEmp" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[130px]">
+            <option value="none">ไม่เรียง</option>
+            <option value="asc">รหัสพนักงาน (น้อยไปมาก)</option>
+            <option value="desc">รหัสพนักงาน (มากไปน้อย)</option>
+          </select>
+        </div>
+
         <div class="w-full flex flex-wrap gap-2 mt-2 border-b pb-4 border-gray-200">
           <button onclick="loadReports()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition flex-1 sm:flex-none shadow">🔍 ค้นหา</button>
           <button onclick="exportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition flex-1 sm:flex-none shadow">📥 ดาวน์โหลด Excel</button>
@@ -649,7 +666,6 @@
 
       try {
         if (type === 'เข้างาน') {
-          // บันทึกเข้างานใหม่เป็นแถวใหม่เสมอ (Insert)
           var { error } = await supabaseClient.from('attendance_data').insert([{
             date: dateStr,
             emp_id: user.empId,
@@ -663,7 +679,6 @@
           }]);
           if(error) throw error;
         } else {
-          // เงื่อนไขออกงาน: ค้นหาแถวในวันนี้ที่มีเวลาเข้างานแต่ยังไม่มีเวลาออกงาน
           var { data: existing, error: errFind } = await supabaseClient.from('attendance_data')
             .select('*')
             .eq('date', dateStr)
@@ -673,7 +688,6 @@
           var targetRow = null;
           if (existing && existing.length > 0) {
             for (var i = 0; i < existing.length; i++) {
-              // หากพบแถวที่มี time_in อยู่แล้วแต่ยังไม่มี time_out ให้จับคู่ลงบรรทัดเดียวกัน
               if (existing[i].time_in && (!existing[i].time_out || existing[i].time_out === "")) {
                 targetRow = existing[i];
                 break;
@@ -682,7 +696,6 @@
           }
 
           if (targetRow) {
-            // หากมีเวลาเข้างานก่อนหน้า ให้นำเวลาออกงานไปเติมลงบรรทัดเดียวกัน
             var oldBranch = targetRow.branch || "";
             var newBranch = (oldBranch === currentBranchName) ? oldBranch : oldBranch + ", " + currentBranchName;
 
@@ -695,7 +708,6 @@
               .eq('id', targetRow.id);
             if(errUp) throw errUp;
           } else {
-            // หากไม่มีเวลาเข้างานก่อนหน้า ให้สร้างแถวใหม่เสมอ (บังคับขึ้นบรรทัดใหม่)
             var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
               date: dateStr,
               emp_id: user.empId,
@@ -712,7 +724,6 @@
         }
 
         loading(false);
-        // บันทึกสำเร็จแล้ว ปิดปุ่มเข้า/ออกงานทันที
         document.getElementById('btnIn').disabled = true;
         document.getElementById('btnOut').disabled = true;
 
@@ -799,6 +810,8 @@
       var e = document.getElementById('filterEnd').value;
       var emp = document.getElementById('filterEmp').value;
       var br = document.getElementById('filterBranch').value;
+      var dateSort = document.getElementById('sortByDate').value;
+      var empSort = document.getElementById('sortByEmp').value;
       
       try {
         var query = supabaseClient.from('attendance_data').select('*');
@@ -822,6 +835,31 @@
           var passEmp = (!emp || emp === 'all') ? true : (String(r.emp_id) === String(emp));
           var passBranch = (!br || br === 'all') ? true : (r.branch && r.branch.includes(br));
           return passDate && passEmp && passBranch;
+        });
+
+        // จัดเรียงข้อมูล (Sorting) ตามวันที่และรหัสพนักงาน
+        reportData.sort(function(a, b) {
+          // เรียงตามรหัสพนักงานก่อน (ถ้ามีการเลือก)
+          if (empSort !== 'none') {
+            var idA = parseInt(a.emp_id, 10) || 0;
+            var idB = parseInt(b.emp_id, 10) || 0;
+            if (idA !== idB) {
+              return empSort === 'asc' ? idA - idB : idB - idA;
+            }
+          }
+
+          // เรียงตามวันที่
+          var partsA = a.date.split('/');
+          var partsB = b.date.split('/');
+          var dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
+          var dateB = new Date(partsB[2], partsB[1] - 1, partsB[0]);
+
+          if (dateA.getTime() !== dateB.getTime()) {
+            return dateSort === 'asc' ? dateA - dateB : dateB - dateA;
+          }
+
+          // ถ้าวันที่และรหัสเท่ากัน ให้เรียงตาม ID หรือเวลาล่าสุด
+          return b.id - a.id;
         });
 
         var tb = document.getElementById('reportTableBody'); 
