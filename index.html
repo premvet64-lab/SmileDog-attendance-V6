@@ -37,8 +37,8 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 relative">
 
-  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.6.8 -->
-  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.6.8</div>
+  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.6.9 -->
+  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.6.9</div>
 
   <!-- Loading -->
   <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
@@ -143,12 +143,12 @@
         <div><label class="block text-xs font-medium text-gray-600 mb-1">พนักงาน</label><select id="filterEmp" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[150px]"><option value="all">ทั้งหมดทุกคน</option></select></div>
         <div><label class="block text-xs font-medium text-gray-600 mb-1">สาขา</label><select id="filterBranch" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[150px]"><option value="all">รวมทุกสาขา</option></select></div>
         
-        <!-- เพิ่มตัวเลือกการเรียงลำดับ (วันที่ & รหัสพนักงาน) -->
+        <!-- ตัวเลือกการเรียงลำดับ -->
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">เรียงตามวันที่</label>
           <select id="sortByDate" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[130px]">
-            <option value="desc">ใหม่ไปเก่า (มากไปน้อย)</option>
             <option value="asc">เก่าไปใหม่ (น้อยไปมาก)</option>
+            <option value="desc">ใหม่ไปเก่า (มากไปน้อย)</option>
           </select>
         </div>
         <div>
@@ -747,6 +747,7 @@
           tabs[j].classList.remove('text-indigo-600','border-b-2','border-indigo-600'); 
           tabs[j].classList.add('text-gray-500'); 
       }
+      document.getElementById(id).classList.hidden = false; // reset
       document.getElementById(id).classList.remove('hidden');
       var btnId = id === 'tabReport' ? 'btnTabReport' : id === 'tabUsers' ? 'btnTabUsers' : 'btnTabSettings';
       document.getElementById(btnId).classList.remove('text-gray-500'); 
@@ -804,12 +805,27 @@
 
     var reportData = [];
 
+    // ฟังก์ชันสร้างช่วงวันที่ทั้งหมดตามตัวกรอง (Start - End)
+    function getDatesBetween(startDateStr, endDateStr) {
+      var arr = [];
+      var dt = new Date(startDateStr);
+      var end = new Date(endDateStr);
+      while (dt <= end) {
+        var d = String(dt.getDate()).padStart(2, '0');
+        var m = String(dt.getMonth() + 1).padStart(2, '0');
+        var y = dt.getFullYear();
+        arr.push(d + '/' + m + '/' + y);
+        dt.setDate(dt.getDate() + 1);
+      }
+      return arr;
+    }
+
     async function loadReports() {
       loading(true, 'ค้นหาข้อมูล...');
       var s = document.getElementById('filterStart').value; 
       var e = document.getElementById('filterEnd').value;
-      var emp = document.getElementById('filterEmp').value;
-      var br = document.getElementById('filterBranch').value;
+      var empFilter = document.getElementById('filterEmp').value;
+      var brFilter = document.getElementById('filterBranch').value;
       var dateSort = document.getElementById('sortByDate').value;
       var empSort = document.getElementById('sortByEmp').value;
       
@@ -819,27 +835,74 @@
         loading(false);
         if(error) throw error;
 
-        reportData = (res || []).filter(function(r) {
-          var passDate = true;
-          if (s && e && r.date) {
-            var parts = r.date.split('/');
-            if(parts.length === 3) {
-              var rDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-              var sObj = new Date(s);
-              var eObj = new Date(e);
-              sObj.setHours(0,0,0,0);
-              eObj.setHours(23,59,59,999);
-              passDate = (rDateObj >= sObj && rDateObj <= eObj);
+        var rawData = res || [];
+
+        // หากผู้ใช้เลือกช่วงวันที่ ให้สร้างตารางครอบคลุมทุกวันในช่วงนั้น (รวมถึงวันที่ไม่มีการลงเวลา)
+        var finalRows = [];
+        if (s && e) {
+          var dateRange = getDatesBetween(s, e);
+          
+          // ดึงรายชื่อพนักงานที่จะนำมาแสดง
+          var targetEmployees = [];
+          if (empFilter === 'all') {
+            targetEmployees = allUsers;
+          } else {
+            for (var u = 0; u < allUsers.length; u++) {
+              if (String(allUsers[u].emp_id) === String(empFilter)) {
+                targetEmployees.push(allUsers[u]);
+                break;
+              }
+            }
+            if (targetEmployees.length === 0) {
+              targetEmployees.push({ emp_id: empFilter, emp_name: "-" });
             }
           }
-          var passEmp = (!emp || emp === 'all') ? true : (String(r.emp_id) === String(emp));
-          var passBranch = (!br || br === 'all') ? true : (r.branch && r.branch.includes(br));
-          return passDate && passEmp && passBranch;
-        });
 
-        // จัดเรียงข้อมูล (Sorting) ตามวันที่และรหัสพนักงาน
-        reportData.sort(function(a, b) {
-          // เรียงตามรหัสพนักงานก่อน (ถ้ามีการเลือก)
+          // วนลูปสร้างแถวข้อมูลสำหรับทุกวันและทุกพนักงานในช่วงที่กำหนด
+          for (var dIdx = 0; dIdx < dateRange.length; dIdx++) {
+            var curDateStr = dateRange[dIdx];
+            for (var empIdx = 0; empIdx < targetEmployees.length; empIdx++) {
+              var currEmp = targetEmployees[empIdx];
+
+              // ค้นหาบันทึกที่มีอยู่จริงของพนักงานคนนี้ในวันนี้
+              var matchedRecords = rawData.filter(function(r) {
+                var passD = (r.date === curDateStr);
+                var passE = (String(r.emp_id) === String(currEmp.emp_id));
+                var passB = (brFilter === 'all' || (r.branch && r.branch.includes(brFilter)));
+                return passD && passE && passB;
+              });
+
+              if (matchedRecords.length > 0) {
+                for (var m = 0; m < matchedRecords.length; m++) {
+                  finalRows.push(matchedRecords[m]);
+                }
+              } else {
+                // ถ้าไม่มีการลงเวลาในวันนั้น ให้สร้างแถวว่างสำหรับแสดงผล
+                finalRows.push({
+                  date: curDateStr,
+                  emp_id: currEmp.emp_id,
+                  emp_name: currEmp.emp_name || "-",
+                  time_in: "",
+                  time_out: "",
+                  branch: "",
+                  distance: "",
+                  photo_in: "",
+                  photo_out: ""
+                });
+              }
+            }
+          }
+        } else {
+          finalRows = rawData.filter(function(r) {
+            var passEmp = (empFilter === 'all' || String(r.emp_id) === String(empFilter));
+            var passBranch = (brFilter === 'all' || (r.branch && r.branch.includes(brFilter)));
+            return passEmp && passBranch;
+          });
+        }
+
+        // จัดเรียงข้อมูล (Sorting)
+        finalRows.sort(function(a, b) {
+          // 1. เรียงตามรหัสพนักงาน (ถ้ากำหนด)
           if (empSort !== 'none') {
             var idA = parseInt(a.emp_id, 10) || 0;
             var idB = parseInt(b.emp_id, 10) || 0;
@@ -848,7 +911,7 @@
             }
           }
 
-          // เรียงตามวันที่
+          // 2. เรียงตามวันที่ (น้อยไปมาก หรือ มากไปน้อย)
           var partsA = a.date.split('/');
           var partsB = b.date.split('/');
           var dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
@@ -858,9 +921,17 @@
             return dateSort === 'asc' ? dateA - dateB : dateB - dateA;
           }
 
-          // ถ้าวันที่และรหัสเท่ากัน ให้เรียงตาม ID หรือเวลาล่าสุด
-          return b.id - a.id;
+          // 3. เรียงต่อด้วยเวลาเข้างาน (น้อยไปมาก)
+          var tInA = a.time_in || "99:99:99";
+          var tInB = b.time_in || "99:99:99";
+          if (tInA !== tInB) {
+            return tInA.localeCompare(tInB);
+          }
+
+          return 0;
         });
+
+        reportData = finalRows;
 
         var tb = document.getElementById('reportTableBody'); 
         tb.innerHTML = '';
@@ -877,7 +948,7 @@
             tb.innerHTML += "<tr class='hover:bg-gray-50 border-b'>" +
               "<td class='px-4 py-3 whitespace-nowrap'>" + r.date + "</td>" +
               "<td class='px-4 py-3'>" + r.emp_id + "</td>" +
-              "<td class='px-4 py-3 font-medium'>" + r.emp_name + "</td>" +
+              "<td class='px-4 py-3 font-medium'>" + (r.emp_name || "-") + "</td>" +
               "<td class='px-4 py-3'>" + inBadge + "</td>" +
               "<td class='px-4 py-3 text-center'>" + htmlIn + "</td>" +
               "<td class='px-4 py-3'>" + outBadge + "</td>" +
@@ -907,6 +978,7 @@
       return dates;
     }
 
+    // ฟังก์ชันส่งออก Excel เรียงลำดับวันที่น้อยไปมาก ก่อน แล้วเรียงต่อด้วยเวลาเข้างานน้อยไปมาก
     function exportExcel() {
       var s = document.getElementById('filterStart').value;
       var e = document.getElementById('filterEnd').value;
@@ -958,6 +1030,22 @@
         sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
 
         var empRecords = dataByEmpId[emp.emp_id] || [];
+
+        // จัดเรียงข้อมูลใน Excel ตามวันที่ (น้อยไปมาก) แล้วเรียงตามเวลาเข้างาน (น้อยไปมาก)
+        empRecords.sort(function(a, b) {
+          var partsA = a.date.split('/');
+          var partsB = b.date.split('/');
+          var dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
+          var dateB = new Date(partsB[2], partsB[1] - 1, partsB[0]);
+
+          if (dateA.getTime() !== dateB.getTime()) {
+            return dateA - dateB; // น้อยไปมาก
+          }
+
+          var tInA = a.time_in || "99:99:99";
+          var tInB = b.time_in || "99:99:99";
+          return tInA.localeCompare(tInB); // น้อยไปมาก
+        });
 
         for(var y = 0; y < dateRangeArray.length; y++) {
            var dateStr = dateRangeArray[y];
