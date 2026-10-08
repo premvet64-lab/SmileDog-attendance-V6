@@ -66,7 +66,7 @@
       <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">✓</div>
       <h3 class="text-xl font-bold text-gray-800" id="successTitle">การทำงานเสร็จสิ้น</h3>
       <p id="successMessage" class="text-sm text-gray-500">ระบบได้ปิดกล้องและ GPS เรียบร้อยแล้ว</p>
-      <button onclick="closeSuccessModal()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition">
+      <button onclick="closeSuccessModalAndShowHistory()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition">
         ตกลง
       </button>
     </div>
@@ -324,8 +324,6 @@
                   statusEl.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">✅ ยืนยันตัวตนผ่าน! (AI)</span>';
                   
                   checkEnableButtons();
-                  
-                  // เปิดใช้งานปุ่มแสดงตารางเวลาทำงานหลังจากสแกนหน้าผ่าน
                   document.getElementById('btnShowHistory').disabled = false;
                   
                   clearAllTimers();
@@ -380,7 +378,7 @@
 
           if (rec && rec.time_in) {
             var tIn = rec.time_in;
-            // เงื่อนไข: เวลาเข้างานตั้งแต่ 09:06 เป็นต้นไป ให้แสดงเป็นตัวหนาสีแดง
+            // เงื่อนไข: เวลาเข้างานตั้งแต่ 09:06 เป็นต้นไป ให้แสดงเป็นตัวหนาสีแดง เฉพาะช่องเวลาเข้างาน
             if (tIn >= "09:06:00" || tIn >= "09:06") {
               timeIn = '<span class="text-rose-600 font-bold">' + tIn + '</span>';
             } else {
@@ -406,8 +404,14 @@
       }
     }
 
+    // กดตกลงในหน้าต่างสำเร็จ แล้วแสดงตารางเวลางานโดยอัตโนมัติ
     function closeSuccessModal() {
       document.getElementById('successModal').classList.add('hidden');
+      showEmpHistoryTable();
+    }
+    
+    function closeSuccessModalAndShowHistory() {
+      closeSuccessModal();
     }
 
     function stopCameraAndGps() {
@@ -455,7 +459,6 @@
     async function adminLogin() {
       var u = document.getElementById('adminUser').value.trim();
       var p = document.getElementById('adminPass').value.trim();
-      // แอดมินรหัสผ่าน 433557 ตามที่กำหนด
       if (u === 'admin' && p === '433557') {
         closeAdminLoginModal();
         document.getElementById('adminUser').value = '';
@@ -518,7 +521,6 @@
     document.addEventListener('scroll', resetTimers);
 
     function checkEnableButtons() {
-       // ปุ่มเข้างานและออกงานจะกดได้เมื่อเงื่อนไข GPS และ Face ผ่าน
        if (isAppActive && isGpsOk && isFaceOk) {
            document.getElementById('btnIn').disabled = false;
            document.getElementById('btnOut').disabled = false;
@@ -635,6 +637,7 @@
 
       try {
         if (type === 'เข้างาน') {
+          // ใช้คำสั่ง insert เพื่อเพิ่มบันทึกแถวใหม่ ไม่ทับข้อมูลเดิม
           var { error } = await supabaseClient.from('attendance_data').insert([{
             date: dateStr,
             emp_id: user.empId,
@@ -648,44 +651,23 @@
           }]);
           if(error) throw error;
         } else {
-          var { data: existing, error: errFind } = await supabaseClient.from('attendance_data')
-            .select('*')
-            .eq('date', dateStr)
-            .eq('emp_id', user.empId)
-            .order('id', { ascending: false })
-            .limit(1);
-
-          if (existing && existing.length > 0 && !existing[0].time_out) {
-            var row = existing[0];
-            var oldBranch = row.branch || "";
-            var newBranch = (oldBranch === currentBranchName) ? oldBranch : oldBranch + ", " + currentBranchName;
-
-            var { error: errUp } = await supabaseClient.from('attendance_data')
-              .update({
-                time_out: timeStr,
-                branch: newBranch,
-                photo_out: photoStatus
-              })
-              .eq('id', row.id);
-            if(errUp) throw errUp;
-          } else {
-            var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
-              date: dateStr,
-              emp_id: user.empId,
-              emp_name: user.empName,
-              time_in: "",
-              time_out: timeStr,
-              branch: currentBranchName,
-              distance: distStr,
-              photo_in: "",
-              photo_out: photoStatus
-            }]);
-            if(errIns) throw errIns;
-          }
+          // ใช้คำสั่ง insert เพื่อเพิ่มบันทึกแถวใหม่ออกงานโดยไม่ทับข้อมูลเดิม
+          var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
+            date: dateStr,
+            emp_id: user.empId,
+            emp_name: user.empName,
+            time_in: "",
+            time_out: timeStr,
+            branch: currentBranchName,
+            distance: distStr,
+            photo_in: "",
+            photo_out: photoStatus
+          }]);
+          if(errIns) throw errIns;
         }
 
         loading(false);
-        // บันทึกสำเร็จแล้ว เปลี่ยนปุ่มเข้า/ออกงานเป็นปุ่มทึบกดไม่ได้
+        // บันทึกสำเร็จแล้ว เปลี่ยนปุ่มเข้า/ออกงานเป็นปุ่มทึบกดไม่ได้ทันที
         document.getElementById('btnIn').disabled = true;
         document.getElementById('btnOut').disabled = true;
 
