@@ -37,8 +37,8 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 relative">
 
-  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.6.9 -->
-  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.6.9</div>
+  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.7.3 -->
+  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.7.3</div>
 
   <!-- Loading -->
   <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
@@ -147,8 +147,8 @@
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">เรียงตามวันที่</label>
           <select id="sortByDate" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[130px]">
-            <option value="asc">เก่าไปใหม่ (น้อยไปมาก)</option>
             <option value="desc">ใหม่ไปเก่า (มากไปน้อย)</option>
+            <option value="asc">เก่าไปใหม่ (น้อยไปมาก)</option>
           </select>
         </div>
         <div>
@@ -355,7 +355,6 @@
       }, 1000);
     }
 
-    // ฟังก์ชันดึงประวัติและแสดงในกรอบ Preview
     async function showEmpHistoryTable() {
       if (!user) return;
 
@@ -392,9 +391,9 @@
 
         for (var j = 0; j < monthDates.length; j++) {
           var dt = monthDates[j];
-          var recList = recordMap[dt];
+          var recList = recordMap[dt] || [];
 
-          if (recList && recList.length > 0) {
+          if (recList.length > 0) {
             for (var k = 0; k < recList.length; k++) {
               var rec = recList[k];
               var timeIn = '-';
@@ -653,6 +652,7 @@
       return 12742000 * Math.asin(Math.sqrt(a));
     }
 
+    // ฟังก์ชันบันทึกเวลาที่แก้ไขให้บันทึกเดินหน้าไปข้างหน้าเสมอตามลำดับเวลาล่าสุด (ห้ามย้อนกลับไปจับคู่แถวเก่า)
     async function record(type) {
       if(!isAppActive || !isGpsOk || !isFaceOk) return alert('เงื่อนไขยังไม่ครบถ้วน');
       
@@ -679,24 +679,20 @@
           }]);
           if(error) throw error;
         } else {
+          // ดึงเฉพาะแถวที่เพิ่มเข้ามาล่าสุดของวันนี้ (ID สูงสุด) เพื่อตรวจสอบว่าเป็นแถวเข้างานที่ยังไม่ได้ออกหรือไม่
           var { data: existing, error: errFind } = await supabaseClient.from('attendance_data')
             .select('*')
             .eq('date', dateStr)
             .eq('emp_id', user.empId)
-            .order('id', { ascending: false });
+            .order('id', { ascending: false })
+            .limit(1);
 
-          var targetRow = null;
-          if (existing && existing.length > 0) {
-            for (var i = 0; i < existing.length; i++) {
-              if (existing[i].time_in && (!existing[i].time_out || existing[i].time_out === "")) {
-                targetRow = existing[i];
-                break;
-              }
-            }
-          }
+          var latestRow = (existing && existing.length > 0) ? existing[0] : null;
 
-          if (targetRow) {
-            var oldBranch = targetRow.branch || "";
+          // เงื่อนไข: จะเติมเวลาออกเฉพาะ "แถวที่เป็นรายการล่าสุดในระบบ" และแถวนั้นต้องมีเวลาเข้าค้างอยู่ (time_in มีค่า และ time_out ว่าง) เท่านั้น
+          // ถ้าแถวสถิติล่าสุดมีเวลาออกไปแล้ว หรือเป็นแถวที่ไม่มีเวลาเข้าค้างอยู่ ระบบจะไม่ย้อนกลับไปหาแถวเก่า แต่จะสร้างแถวใหม่ (Insert) ทันที
+          if (latestRow && latestRow.time_in && (!latestRow.time_out || latestRow.time_out === "")) {
+            var oldBranch = latestRow.branch || "";
             var newBranch = (oldBranch === currentBranchName) ? oldBranch : oldBranch + ", " + currentBranchName;
 
             var { error: errUp } = await supabaseClient.from('attendance_data')
@@ -705,7 +701,7 @@
                 branch: newBranch,
                 photo_out: photoStatus
               })
-              .eq('id', targetRow.id);
+              .eq('id', latestRow.id);
             if(errUp) throw errUp;
           } else {
             var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
@@ -747,7 +743,6 @@
           tabs[j].classList.remove('text-indigo-600','border-b-2','border-indigo-600'); 
           tabs[j].classList.add('text-gray-500'); 
       }
-      document.getElementById(id).classList.hidden = false; // reset
       document.getElementById(id).classList.remove('hidden');
       var btnId = id === 'tabReport' ? 'btnTabReport' : id === 'tabUsers' ? 'btnTabUsers' : 'btnTabSettings';
       document.getElementById(btnId).classList.remove('text-gray-500'); 
@@ -805,7 +800,6 @@
 
     var reportData = [];
 
-    // ฟังก์ชันสร้างช่วงวันที่ทั้งหมดตามตัวกรอง (Start - End)
     function getDatesBetween(startDateStr, endDateStr) {
       var arr = [];
       var dt = new Date(startDateStr);
@@ -836,13 +830,10 @@
         if(error) throw error;
 
         var rawData = res || [];
-
-        // หากผู้ใช้เลือกช่วงวันที่ ให้สร้างตารางครอบคลุมทุกวันในช่วงนั้น (รวมถึงวันที่ไม่มีการลงเวลา)
         var finalRows = [];
+
         if (s && e) {
           var dateRange = getDatesBetween(s, e);
-          
-          // ดึงรายชื่อพนักงานที่จะนำมาแสดง
           var targetEmployees = [];
           if (empFilter === 'all') {
             targetEmployees = allUsers;
@@ -858,13 +849,11 @@
             }
           }
 
-          // วนลูปสร้างแถวข้อมูลสำหรับทุกวันและทุกพนักงานในช่วงที่กำหนด
           for (var dIdx = 0; dIdx < dateRange.length; dIdx++) {
             var curDateStr = dateRange[dIdx];
             for (var empIdx = 0; empIdx < targetEmployees.length; empIdx++) {
               var currEmp = targetEmployees[empIdx];
 
-              // ค้นหาบันทึกที่มีอยู่จริงของพนักงานคนนี้ในวันนี้
               var matchedRecords = rawData.filter(function(r) {
                 var passD = (r.date === curDateStr);
                 var passE = (String(r.emp_id) === String(currEmp.emp_id));
@@ -877,7 +866,6 @@
                   finalRows.push(matchedRecords[m]);
                 }
               } else {
-                // ถ้าไม่มีการลงเวลาในวันนั้น ให้สร้างแถวว่างสำหรับแสดงผล
                 finalRows.push({
                   date: curDateStr,
                   emp_id: currEmp.emp_id,
@@ -900,9 +888,7 @@
           });
         }
 
-        // จัดเรียงข้อมูล (Sorting)
         finalRows.sort(function(a, b) {
-          // 1. เรียงตามรหัสพนักงาน (ถ้ากำหนด)
           if (empSort !== 'none') {
             var idA = parseInt(a.emp_id, 10) || 0;
             var idB = parseInt(b.emp_id, 10) || 0;
@@ -911,7 +897,6 @@
             }
           }
 
-          // 2. เรียงตามวันที่ (น้อยไปมาก หรือ มากไปน้อย)
           var partsA = a.date.split('/');
           var partsB = b.date.split('/');
           var dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
@@ -921,14 +906,7 @@
             return dateSort === 'asc' ? dateA - dateB : dateB - dateA;
           }
 
-          // 3. เรียงต่อด้วยเวลาเข้างาน (น้อยไปมาก)
-          var tInA = a.time_in || "99:99:99";
-          var tInB = b.time_in || "99:99:99";
-          if (tInA !== tInB) {
-            return tInA.localeCompare(tInB);
-          }
-
-          return 0;
+          return dateSort === 'asc' ? ((a.id || 0) - (b.id || 0)) : ((b.id || 0) - (a.id || 0));
         });
 
         reportData = finalRows;
@@ -978,7 +956,6 @@
       return dates;
     }
 
-    // ฟังก์ชันส่งออก Excel เรียงลำดับวันที่น้อยไปมาก ก่อน แล้วเรียงต่อด้วยเวลาเข้างานน้อยไปมาก
     function exportExcel() {
       var s = document.getElementById('filterStart').value;
       var e = document.getElementById('filterEnd').value;
@@ -1031,7 +1008,6 @@
 
         var empRecords = dataByEmpId[emp.emp_id] || [];
 
-        // จัดเรียงข้อมูลใน Excel ตามวันที่ (น้อยไปมาก) แล้วเรียงตามเวลาเข้างาน (น้อยไปมาก)
         empRecords.sort(function(a, b) {
           var partsA = a.date.split('/');
           var partsB = b.date.split('/');
@@ -1039,12 +1015,12 @@
           var dateB = new Date(partsB[2], partsB[1] - 1, partsB[0]);
 
           if (dateA.getTime() !== dateB.getTime()) {
-            return dateA - dateB; // น้อยไปมาก
+            return dateA - dateB;
           }
 
-          var tInA = a.time_in || "99:99:99";
-          var tInB = b.time_in || "99:99:99";
-          return tInA.localeCompare(tInB); // น้อยไปมาก
+          var tInA = a.time_in && a.time_in !== "" ? a.time_in : (a.time_out || "00:00:00");
+          var tInB = b.time_in && b.time_in !== "" ? b.time_in : (b.time_out || "00:00:00");
+          return tInA.localeCompare(tInB);
         });
 
         for(var y = 0; y < dateRangeArray.length; y++) {
