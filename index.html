@@ -663,51 +663,19 @@
           }]);
           if(error) throw error;
         } else {
-          // ค้นหาแถวในวันนี้ที่ยังไม่มีเวลาออกงาน (เพื่อผูกเวลาออกงานครั้งแรกกับเข้างานล่าสุด)
-          var { data: existing, error: errFind } = await supabaseClient.from('attendance_data')
-            .select('*')
-            .eq('date', dateStr)
-            .eq('emp_id', user.empId)
-            .order('id', { ascending: false });
-
-          var targetRow = null;
-          if (existing && existing.length > 0) {
-            for (var i = 0; i < existing.length; i++) {
-              if (!existing[i].time_out) {
-                targetRow = existing[i];
-                break;
-              }
-            }
-          }
-
-          if (targetRow) {
-            // หากเจอเวลาเข้างานที่ยังไม่ออก ให้ Update เวลาออกงานใส่แถวนั้น
-            var oldBranch = targetRow.branch || "";
-            var newBranch = (oldBranch === currentBranchName) ? oldBranch : oldBranch + ", " + currentBranchName;
-
-            var { error: errUp } = await supabaseClient.from('attendance_data')
-              .update({
-                time_out: timeStr,
-                branch: newBranch,
-                photo_out: photoStatus
-              })
-              .eq('id', targetRow.id);
-            if(errUp) throw errUp;
-          } else {
-            // บังคับขึ้นบรรทัดใหม่ทันทีแม้ไม่มีเวลาเข้างานก่อนหน้า (ตามเงื่อนไขข้อ 1)
-            var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
-              date: dateStr,
-              emp_id: user.empId,
-              emp_name: user.empName,
-              time_in: "",
-              time_out: timeStr,
-              branch: currentBranchName,
-              distance: distStr,
-              photo_in: "",
-              photo_out: photoStatus
-            }]);
-            if(errIns) throw errIns;
-          }
+          // เงื่อนไขออกงาน: บังคับสร้างแถวใหม่เสมอตามความต้องการ (Insert) เพื่อให้ไม่ทับหรือติดขัดกรณีไม่มีเข้างานก่อนหน้า
+          var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
+            date: dateStr,
+            emp_id: user.empId,
+            emp_name: user.empName,
+            time_in: "",
+            time_out: timeStr,
+            branch: currentBranchName,
+            distance: distStr,
+            photo_in: "",
+            photo_out: photoStatus
+          }]);
+          if(errIns) throw errIns;
         }
 
         loading(false);
