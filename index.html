@@ -37,8 +37,8 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 relative">
 
-  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.6 -->
-  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.6</div>
+  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.6.1 -->
+  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.6.1</div>
 
   <!-- Loading -->
   <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
@@ -66,6 +66,7 @@
       <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">✓</div>
       <h3 class="text-xl font-bold text-gray-800" id="successTitle">การทำงานเสร็จสิ้น</h3>
       <p id="successMessage" class="text-sm text-gray-500">ระบบได้ปิดกล้องและ GPS เรียบร้อยแล้ว</p>
+      <!-- กดตกลงแล้วแสดงตารางเวลางานโดยอัตโนมัติทันที -->
       <button onclick="closeSuccessModalAndShowHistory()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition">
         ตกลง
       </button>
@@ -107,7 +108,7 @@
       <button id="btnOut" onclick="record('ออกงาน')" disabled class="bg-rose-500 hover:bg-rose-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold shadow-lg transition">ออกงาน</button>
     </div>
 
-    <!-- ปุ่มแสดงตารางเวลาทำงาน (กดใช้งานได้หลังสแกนใบหน้าผ่าน) -->
+    <!-- ปุ่มแสดงตารางเวลาทำงาน -->
     <button id="btnShowHistory" onclick="showEmpHistoryTable()" disabled class="w-full bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-sm shadow mb-2 transition flex items-center justify-center space-x-1">
       <span>📊 แสดงตารางเวลาทำงาน</span>
     </button>
@@ -338,7 +339,7 @@
       }, 1000);
     }
 
-    // ฟังก์ชันดึงประวัติและแสดงในกรอบ Preview (แสดงถึงแค่วันปัจจุบัน)
+    // ฟังก์ชันดึงประวัติและแสดงในกรอบ Preview (แสดงถึงแค่วันปัจจุบัน พร้อมรองรับหลายแถวต่อวัน)
     async function showEmpHistoryTable() {
       if (!user) return;
 
@@ -350,7 +351,8 @@
 
         var { data, error } = await supabaseClient.from('attendance_data')
           .select('*')
-          .eq('emp_id', user.empId);
+          .eq('emp_id', user.empId)
+          .order('id', { ascending: false });
 
         var historyBody = document.getElementById('empHistoryBody');
         historyBody.innerHTML = '';
@@ -366,35 +368,48 @@
         var recordMap = {};
         if (!error && data) {
           for (var i = 0; i < data.length; i++) {
-            recordMap[data[i].date] = data[i];
+            var dtKey = data[i].date;
+            if (!recordMap[dtKey]) recordMap[dtKey] = [];
+            recordMap[dtKey].push(data[i]);
           }
         }
 
         for (var j = 0; j < monthDates.length; j++) {
           var dt = monthDates[j];
-          var rec = recordMap[dt];
-          var timeIn = '-';
-          var timeOut = '-';
+          var recList = recordMap[dt];
 
-          if (rec && rec.time_in) {
-            var tIn = rec.time_in;
-            // เงื่อนไข: เวลาเข้างานตั้งแต่ 09:06 เป็นต้นไป ให้แสดงเป็นตัวหนาสีแดง เฉพาะช่องเวลาเข้างาน
-            if (tIn >= "09:06:00" || tIn >= "09:06") {
-              timeIn = '<span class="text-rose-600 font-bold">' + tIn + '</span>';
-            } else {
-              timeIn = '<span class="text-emerald-600 font-bold">' + tIn + '</span>';
+          if (recList && recList.length > 0) {
+            for (var k = 0; k < recList.length; k++) {
+              var rec = recList[k];
+              var timeIn = '-';
+              var timeOut = '-';
+
+              if (rec.time_in) {
+                var tIn = rec.time_in;
+                if (tIn >= "09:06:00" || tIn >= "09:06") {
+                  timeIn = '<span class="text-rose-600 font-bold">' + tIn + '</span>';
+                } else {
+                  timeIn = '<span class="text-emerald-600 font-bold">' + tIn + '</span>';
+                }
+              }
+
+              if (rec.time_out) {
+                timeOut = '<span class="text-gray-700 font-medium">' + rec.time_out + '</span>';
+              }
+
+              historyBody.innerHTML += "<tr class='border-b hover:bg-gray-50'>" +
+                "<td class='p-1.5 font-medium'>" + dt + "</td>" +
+                "<td class='p-1.5'>" + timeIn + "</td>" +
+                "<td class='p-1.5'>" + timeOut + "</td>" +
+              "</tr>";
             }
+          } else {
+            historyBody.innerHTML += "<tr class='border-b hover:bg-gray-50'>" +
+              "<td class='p-1.5 font-medium'>" + dt + "</td>" +
+              "<td class='p-1.5'>-</td>" +
+              "<td class='p-1.5'>-</td>" +
+            "</tr>";
           }
-
-          if (rec && rec.time_out) {
-            timeOut = '<span class="text-gray-700 font-medium">' + rec.time_out + '</span>';
-          }
-
-          historyBody.innerHTML += "<tr class='border-b hover:bg-gray-50'>" +
-            "<td class='p-1.5 font-medium'>" + dt + "</td>" +
-            "<td class='p-1.5'>" + timeIn + "</td>" +
-            "<td class='p-1.5'>" + timeOut + "</td>" +
-          "</tr>";
         }
 
         document.getElementById('video').classList.add('hidden');
@@ -404,7 +419,7 @@
       }
     }
 
-    // กดตกลงในหน้าต่างสำเร็จ แล้วแสดงตารางเวลางานโดยอัตโนมัติ
+    // กดตกลงในหน้าต่างสำเร็จ แล้วแสดงตารางเวลางานโดยอัตโนมัติทันที
     function closeSuccessModal() {
       document.getElementById('successModal').classList.add('hidden');
       showEmpHistoryTable();
@@ -637,7 +652,7 @@
 
       try {
         if (type === 'เข้างาน') {
-          // ใช้คำสั่ง insert เพื่อเพิ่มบันทึกแถวใหม่ ไม่ทับข้อมูลเดิม
+          // ใช้คำสั่ง insert เพื่อเพิ่มแถวใหม่เสมอ ไม่ทับข้อมูลเดิม
           var { error } = await supabaseClient.from('attendance_data').insert([{
             date: dateStr,
             emp_id: user.empId,
@@ -651,7 +666,7 @@
           }]);
           if(error) throw error;
         } else {
-          // ใช้คำสั่ง insert เพื่อเพิ่มบันทึกแถวใหม่ออกงานโดยไม่ทับข้อมูลเดิม
+          // ใช้คำสั่ง insert เพื่อเพิ่มแถวใหม่ออกงานโดยไม่ทับข้อมูลเดิม
           var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
             date: dateStr,
             emp_id: user.empId,
