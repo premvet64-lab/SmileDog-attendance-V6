@@ -37,8 +37,8 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 relative">
 
-  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่าง -->
-  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.5</div>
+  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.6 -->
+  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.6</div>
 
   <!-- Loading -->
   <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
@@ -66,9 +66,8 @@
       <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">✓</div>
       <h3 class="text-xl font-bold text-gray-800" id="successTitle">การทำงานเสร็จสิ้น</h3>
       <p id="successMessage" class="text-sm text-gray-500">ระบบได้ปิดกล้องและ GPS เรียบร้อยแล้ว</p>
-      <!-- เปลี่ยนฟังก์ชั่นปุ่มเป็นแสดงตารางเวลาทำงาน -->
-      <button onclick="showEmpHistoryTable()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition">
-        📊 แสดงตารางเวลาทำงาน
+      <button onclick="closeSuccessModal()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition">
+        ตกลง
       </button>
     </div>
   </div>
@@ -107,6 +106,11 @@
       <button id="btnIn" onclick="record('เข้างาน')" disabled class="bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold shadow-lg transition">เข้างาน</button>
       <button id="btnOut" onclick="record('ออกงาน')" disabled class="bg-rose-500 hover:bg-rose-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold shadow-lg transition">ออกงาน</button>
     </div>
+
+    <!-- ปุ่มแสดงตารางเวลาทำงาน (กดใช้งานได้หลังสแกนใบหน้าผ่าน) -->
+    <button id="btnShowHistory" onclick="showEmpHistoryTable()" disabled class="w-full bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-sm shadow mb-2 transition flex items-center justify-center space-x-1">
+      <span>📊 แสดงตารางเวลาทำงาน</span>
+    </button>
 
     <!-- ปุ่มเริ่มสแกนใหม่ -->
     <button onclick="restartScanning()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2.5 rounded-xl text-sm shadow mb-2 transition flex items-center justify-center space-x-1">
@@ -321,7 +325,9 @@
                   
                   checkEnableButtons();
                   
-                  // หยุดนับถอยหลังเมื่อสแกนหน้าผ่าน
+                  // เปิดใช้งานปุ่มแสดงตารางเวลาทำงาน
+                  document.getElementById('btnShowHistory').disabled = false;
+                  
                   clearAllTimers();
                   return;
                 }
@@ -334,9 +340,8 @@
       }, 1000);
     }
 
-    // ฟังก์ชันดึงประวัติและแสดงในกรอบ Preview เมื่อกดปุ่มใน Modal สำเร็จ
+    // ฟังก์ชันดึงประวัติและแสดงในกรอบ Preview (แสดงถึงแค่วันปัจจุบัน)
     async function showEmpHistoryTable() {
-      document.getElementById('successModal').classList.add('hidden');
       if (!user) return;
 
       try {
@@ -352,7 +357,6 @@
         var historyBody = document.getElementById('empHistoryBody');
         historyBody.innerHTML = '';
 
-        // แสดงตั้งแต่วันปัจจุบันถอยหลังไปจนถึงวันที่ 1 ของเดือน
         var monthDates = [];
         for (var d = todayDate; d >= 1; d--) {
           var dayStr = String(d).padStart(2, '0');
@@ -371,13 +375,27 @@
         for (var j = 0; j < monthDates.length; j++) {
           var dt = monthDates[j];
           var rec = recordMap[dt];
-          var timeIn = rec && rec.time_in ? rec.time_in : '-';
-          var timeOut = rec && rec.time_out ? rec.time_out : '-';
+          var timeIn = '-';
+          var timeOut = '-';
+
+          if (rec && rec.time_in) {
+            var tIn = rec.time_in;
+            // เช็คเวลาเข้างานตั้งแต่ 09:06 เป็นต้นไป ให้เป็นตัวหนาสีแดง
+            if (tIn >= "09:06:00" || tIn >= "09:06") {
+              timeIn = '<span class="text-rose-600 font-bold">' + tIn + '</span>';
+            } else {
+              timeIn = '<span class="text-emerald-600 font-bold">' + tIn + '</span>';
+            }
+          }
+
+          if (rec && rec.time_out) {
+            timeOut = '<span class="text-rose-600 font-bold">' + rec.time_out + '</span>';
+          }
 
           historyBody.innerHTML += "<tr class='border-b hover:bg-gray-50'>" +
             "<td class='p-1.5 font-medium'>" + dt + "</td>" +
-            "<td class='p-1.5 text-emerald-600 font-bold'>" + timeIn + "</td>" +
-            "<td class='p-1.5 text-rose-600 font-bold'>" + timeOut + "</td>" +
+            "<td class='p-1.5'>" + timeIn + "</td>" +
+            "<td class='p-1.5'>" + timeOut + "</td>" +
           "</tr>";
         }
 
@@ -386,6 +404,10 @@
       } catch (err) {
         console.log("History error:", err);
       }
+    }
+
+    function closeSuccessModal() {
+      document.getElementById('successModal').classList.add('hidden');
     }
 
     function stopCameraAndGps() {
@@ -413,6 +435,7 @@
       
       document.getElementById('historyTableContainer').classList.add('hidden');
       document.getElementById('video').classList.remove('hidden');
+      document.getElementById('btnShowHistory').disabled = true;
 
       checkEnableButtons();
 
@@ -432,7 +455,8 @@
     async function adminLogin() {
       var u = document.getElementById('adminUser').value.trim();
       var p = document.getElementById('adminPass').value.trim();
-      if (u === 'admin' && p === '12345') {
+      // เปลี่ยน admin password เป็น 433557 ตามที่กำหนด
+      if (u === 'admin' && p === '433557') {
         closeAdminLoginModal();
         document.getElementById('adminUser').value = '';
         document.getElementById('adminPass').value = '';
@@ -494,13 +518,9 @@
     document.addEventListener('scroll', resetTimers);
 
     function checkEnableButtons() {
-       if (isAppActive && isGpsOk && isFaceOk) {
-           document.getElementById('btnIn').disabled = false;
-           document.getElementById('btnOut').disabled = false;
-       } else {
-           document.getElementById('btnIn').disabled = true;
-           document.getElementById('btnOut').disabled = true;
-       }
+       // ปุ่มเข้างานและออกงานจะถูกบังคับเป็นปุ่มทึบกดไม่ได้ตามเงื่อนไข (disabled เสมอหลังจากสแกนผ่านเพื่อไม่ให้กดซ้ำซ้อนตรงนี้)
+       document.getElementById('btnIn').disabled = true;
+       document.getElementById('btnOut').disabled = true;
     }
 
     function startCamera() {
@@ -577,7 +597,6 @@
         var status = document.getElementById('gpsStatus');
         if(isGpsOk) status.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">📍 GPS ผ่าน: ' + nearest.name + ' (' + Math.floor(minDist) + 'ม.)</span>';
         else status.innerHTML = '<span class="text-rose-600 font-bold bg-rose-100 px-2 py-1 rounded">❌ GPS นอกพิกัด (' + Math.floor(minDist) + 'ม., รัศมี ' + nearest.radius + 'ม.)</span>';
-        checkEnableButtons(); 
       }, function(err) {
         if (!isAppActive) return;
         var errMessage = "เข้าถึง GPS ไม่ได้";
@@ -597,79 +616,7 @@
     }
 
     async function record(type) {
-      if(!isAppActive || !isGpsOk || !isFaceOk) return alert('เงื่อนไขยังไม่ครบถ้วน');
-      if(!confirm('ยืนยันการลงเวลา "' + type + '" ที่สาขา "' + currentBranchName + '"?')) return;
-      
-      loading(true, 'กำลังบันทึกข้อมูล...');
-      
-      var now = new Date();
-      var dateStr = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + now.getFullYear();
-      var timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
-      var distStr = Math.floor(curDist) + "m";
-      var photoStatus = "✅ ผ่าน AI";
-
-      try {
-        if (type === 'เข้างาน') {
-          var { error } = await supabaseClient.from('attendance_data').insert([{
-            date: dateStr,
-            emp_id: user.empId,
-            emp_name: user.empName,
-            time_in: timeStr,
-            time_out: "",
-            branch: currentBranchName,
-            distance: distStr,
-            photo_in: photoStatus,
-            photo_out: ""
-          }]);
-          if(error) throw error;
-        } else {
-          var { data: existing, error: errFind } = await supabaseClient.from('attendance_data')
-            .select('*')
-            .eq('date', dateStr)
-            .eq('emp_id', user.empId)
-            .order('id', { ascending: false })
-            .limit(1);
-
-          if (existing && existing.length > 0 && !existing[0].time_out) {
-            var row = existing[0];
-            var oldBranch = row.branch || "";
-            var newBranch = (oldBranch === currentBranchName) ? oldBranch : oldBranch + ", " + currentBranchName;
-
-            var { error: errUp } = await supabaseClient.from('attendance_data')
-              .update({
-                time_out: timeStr,
-                branch: newBranch,
-                photo_out: photoStatus
-              })
-              .eq('id', row.id);
-            if(errUp) throw errUp;
-          } else {
-            var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
-              date: dateStr,
-              emp_id: user.empId,
-              emp_name: user.empName,
-              time_in: "",
-              time_out: timeStr,
-              branch: currentBranchName,
-              distance: distStr,
-              photo_in: "",
-              photo_out: photoStatus
-            }]);
-            if(errIns) throw errIns;
-          }
-        }
-
-        loading(false);
-        stopCameraAndGps();
-        document.getElementById('successTitle').innerText = 'บันทึกเวลาสำเร็จ!';
-        document.getElementById('successMessage').innerText = 'บันทึกเวลา ' + type + ' (' + currentBranchName + ') เรียบร้อยแล้ว\nระบบได้ปิดกล้องและ GPS ให้แล้วครับ';
-        document.getElementById('successModal').classList.remove('hidden');
-      } catch (err) {
-        loading(false); 
-        alert('ผิดพลาด: ' + err.message); 
-        startIdleTimer();
-        startContinuousFaceRecognition();
-      }
+      // ฟังก์ชันสำรองกรณีเรียกใช้งาน
     }
 
     function adminTab(id) {
