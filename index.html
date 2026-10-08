@@ -66,8 +66,9 @@
       <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">✓</div>
       <h3 class="text-xl font-bold text-gray-800" id="successTitle">การทำงานเสร็จสิ้น</h3>
       <p id="successMessage" class="text-sm text-gray-500">ระบบได้ปิดกล้องและ GPS เรียบร้อยแล้ว</p>
-      <button onclick="restartScanning()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition">
-        🔄 เริ่มสแกนอีกครั้ง
+      <!-- เปลี่ยนฟังก์ชั่นปุ่มเป็นแสดงตารางเวลาทำงาน -->
+      <button onclick="showEmpHistoryTable()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition">
+        📊 แสดงตารางเวลาทำงาน
       </button>
     </div>
   </div>
@@ -84,7 +85,7 @@
       <p id="logoutTimerDisplay" class="text-xs font-bold text-rose-500 hidden">⏳ รีเซ็ตหน้าจอใน: <span id="logoutCountdown">30</span> วินาที</p>
     </div>
     
-    <!-- กรอบ Preview กล่อง / แสดงตารางประวัติเวลาปัจจุบัน -->
+    <!-- กรอบ Preview กล้อง / ตารางประวัติ -->
     <div id="displayContainer" class="mb-4 relative bg-black rounded-xl overflow-hidden h-80 flex items-center justify-center border-4 border-gray-100 shadow-inner">
       <video id="video" autoplay playsinline class="absolute inset-0 w-full h-full object-cover transform scale-x-[-1]"></video>
       <div id="historyTableContainer" class="absolute inset-0 bg-white overflow-y-auto p-3 hidden">
@@ -107,7 +108,7 @@
       <button id="btnOut" onclick="record('ออกงาน')" disabled class="bg-rose-500 hover:bg-rose-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold shadow-lg transition">ออกงาน</button>
     </div>
 
-    <!-- ปุ่มเริ่มสแกนใหม่ (หลังสแกนแล้วใช้กดเพื่อเริ่มใหม่) -->
+    <!-- ปุ่มเริ่มสแกนใหม่ -->
     <button onclick="restartScanning()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2.5 rounded-xl text-sm shadow mb-2 transition flex items-center justify-center space-x-1">
       <span>🔄 เริ่มสแกนใหม่</span>
     </button>
@@ -320,8 +321,8 @@
                   
                   checkEnableButtons();
                   
-                  // โหลดและแสดงประวัติเข้าออกงานเดือนปัจจุบันในกรอบ Preview แทนกล้อง
-                  loadAndShowEmpCurrentMonthHistory(user.empId);
+                  // หยุดนับถอยหลังเมื่อสแกนหน้าผ่าน
+                  clearAllTimers();
                   return;
                 }
               }
@@ -333,24 +334,27 @@
       }, 1000);
     }
 
-    // ฟังก์ชันดึงและแสดงประวัติเฉพาะเดือนปัจจุบัน เรียงวันล่าสุดไว้บนสุด
-    async function loadAndShowEmpCurrentMonthHistory(empId) {
+    // ฟังก์ชันดึงประวัติและแสดงในกรอบ Preview เมื่อกดปุ่มใน Modal สำเร็จ
+    async function showEmpHistoryTable() {
+      document.getElementById('successModal').classList.add('hidden');
+      if (!user) return;
+
       try {
         var now = new Date();
-        var currentMonth = now.getMonth(); // 0-11
+        var currentMonth = now.getMonth(); 
         var currentYear = now.getFullYear();
+        var todayDate = now.getDate();
 
         var { data, error } = await supabaseClient.from('attendance_data')
           .select('*')
-          .eq('emp_id', empId);
+          .eq('emp_id', user.empId);
 
         var historyBody = document.getElementById('empHistoryBody');
         historyBody.innerHTML = '';
 
-        // สร้างวันทั้งหมดในเดือนปัจจุบัน (เรียงจากวันล่าสุดไปวันแรก)
-        var daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        // แสดงตั้งแต่วันปัจจุบันถอยหลังไปจนถึงวันที่ 1 ของเดือน
         var monthDates = [];
-        for (var d = daysInMonth; d >= 1; d--) {
+        for (var d = todayDate; d >= 1; d--) {
           var dayStr = String(d).padStart(2, '0');
           var monthStr = String(currentMonth + 1).padStart(2, '0');
           var dateFullStr = dayStr + '/' + monthStr + '/' + currentYear;
@@ -377,7 +381,6 @@
           "</tr>";
         }
 
-        // ซ่อน video เปิดตารางประวัติแทน
         document.getElementById('video').classList.add('hidden');
         document.getElementById('historyTableContainer').classList.remove('hidden');
       } catch (err) {
@@ -408,7 +411,6 @@
       document.getElementById('faceStatus').innerHTML = '<span class="text-medium text-gray-600">👤 กำลังค้นหาใบหน้าพนักงาน...</span>';
       document.getElementById('gpsStatus').innerHTML = '<span class="text-medium text-gray-600">📍 กำลังค้นหาพิกัด GPS...</span>';
       
-      // ซ่อนตารางประวัติ เปิดกล้องกลับมาทำงานปกติ
       document.getElementById('historyTableContainer').classList.add('hidden');
       document.getElementById('video').classList.remove('hidden');
 
