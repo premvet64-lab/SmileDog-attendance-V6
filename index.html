@@ -37,8 +37,8 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 relative">
 
-  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.6.1 -->
-  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.6.1</div>
+  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.6.5 -->
+  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.6.5</div>
 
   <!-- Loading -->
   <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
@@ -338,7 +338,7 @@
       }, 1000);
     }
 
-    // ฟังก์ชันดึงประวัติและแสดงในกรอบ Preview (แสดงถึงแค่วันปัจจุบัน และแยกแถวอิสระตามรายการ)
+    // ฟังก์ชันดึงประวัติและแสดงในกรอบ Preview (แสดงถึงแค่วันปัจจุบัน และแยกแถวอิสระ)
     async function showEmpHistoryTable() {
       if (!user) return;
 
@@ -418,7 +418,6 @@
       }
     }
 
-    // กดตกลงในหน้าต่างสำเร็จ แล้วแสดงตารางเวลางานโดยอัตโนมัติทันที
     function closeSuccessModal() {
       document.getElementById('successModal').classList.add('hidden');
       showEmpHistoryTable();
@@ -664,7 +663,7 @@
           }]);
           if(error) throw error;
         } else {
-          // ตรวจสอบว่าในวันนี้มีรายการเข้างานล่าสุดที่ยังไม่มีเวลาออกงานหรือไม่
+          // ค้นหาแถวในวันนี้ที่ยังไม่มีเวลาออกงาน (เพื่อผูกเวลาออกงานครั้งแรกกับเข้างานล่าสุด)
           var { data: existing, error: errFind } = await supabaseClient.from('attendance_data')
             .select('*')
             .eq('date', dateStr)
@@ -695,7 +694,7 @@
               .eq('id', targetRow.id);
             if(errUp) throw errUp;
           } else {
-            // หากไม่มีรายการเข้างานค้างอยู่ ให้สร้างแถวใหม่สำหรับการออกงานทันที (Insert)
+            // บังคับขึ้นบรรทัดใหม่ทันทีแม้ไม่มีเวลาเข้างานก่อนหน้า (ตามเงื่อนไขข้อ 1)
             var { error: errIns } = await supabaseClient.from('attendance_data').insert([{
               date: dateStr,
               emp_id: user.empId,
