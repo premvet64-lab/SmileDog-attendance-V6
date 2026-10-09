@@ -17,7 +17,7 @@
 </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ระบบลงเวลาด้วย AI & GPS</title>
+  <title>ระบบลงเวลาด้วย WebAuthn & GPS</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -27,7 +27,6 @@
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://npmcdn.com/flatpickr/dist/l10n/th.js"></script>
   
-  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style> 
@@ -37,14 +36,13 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 relative">
 
-  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.7.4 -->
-  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.7.4</div>
+  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.8 -->
+  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.8</div>
 
   <!-- Loading -->
   <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
     <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-indigo-600 mb-3"></div>
-    <p id="loadingText" class="text-gray-700 font-bold text-lg">กำลังโหลด AI ตรวจจับใบหน้า...</p>
-    <p class="text-gray-400 text-sm mt-2">(รอสักครู่ ใช้เวลาโหลดครั้งแรกเล็กน้อย)</p>
+    <p id="loadingText" class="text-gray-700 font-bold text-lg">กำลังโหลดข้อมูลระบบ...</p>
   </div>
 
   <!-- Admin Login Modal -->
@@ -65,7 +63,7 @@
     <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center space-y-4">
       <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">✓</div>
       <h3 class="text-xl font-bold text-gray-800" id="successTitle">การทำงานเสร็จสิ้น</h3>
-      <p id="successMessage" class="text-sm text-gray-500">ระบบได้ปิดกล้องและ GPS เรียบร้อยแล้ว</p>
+      <p id="successMessage" class="text-sm text-gray-500">ระบบได้บันทึกเวลาและอัปเดตตำแหน่งเรียบร้อยแล้ว</p>
       <button onclick="closeSuccessModalAndShowHistory()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition">
         ตกลง
       </button>
@@ -75,18 +73,35 @@
   <!-- 1. User Page -->
   <div id="pageUser" class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
     <div class="flex justify-between items-center mb-4 border-b pb-4">
-      <div><h3 class="font-bold text-lg text-gray-800" id="uName">กำลังสแกนใบหน้า...</h3><p class="text-sm text-gray-500">รหัสพนักงาน: <span id="uId">-</span></p></div>
+      <div><h3 class="font-bold text-lg text-gray-800" id="uName">รอการเลือกพนักงาน...</h3><p class="text-sm text-gray-500">รหัสพนักงาน: <span id="uId">-</span></p></div>
+    </div>
+
+    <!-- Dropdown เลือกพนักงาน -->
+    <div class="mb-4">
+        <label class="block text-sm font-bold text-gray-700 mb-1">เลือกชื่อของคุณเพื่อลงเวลา</label>
+        <select id="empSelect" onchange="resetAuth()" class="w-full border-2 border-indigo-200 px-3 py-2.5 rounded-xl outline-none bg-white font-medium text-indigo-800">
+            <option value="">-- กรุณาเลือกชื่อพนักงาน --</option>
+        </select>
     </div>
     
     <div class="bg-blue-50 p-3 rounded-lg mb-4 text-center border border-blue-100 flex flex-col space-y-2">
       <p id="gpsStatus" class="text-sm font-medium text-gray-600 bg-white p-2 rounded shadow-sm">📍 กำลังค้นหาพิกัด GPS...</p>
-      <p id="faceStatus" class="text-sm font-medium text-gray-600 bg-white p-2 rounded shadow-sm">👤 กำลังค้นหาใบหน้าพนักงาน...</p>
+      <p id="faceStatus" class="text-sm font-medium text-gray-600 bg-white p-2 rounded shadow-sm">👤 รอการยืนยันตัวตน...</p>
       <p id="logoutTimerDisplay" class="text-xs font-bold text-rose-500 hidden">⏳ รีเซ็ตหน้าจอใน: <span id="logoutCountdown">30</span> วินาที</p>
     </div>
     
-    <!-- กรอบ Preview กล้อง / ตารางประวัติ -->
-    <div id="displayContainer" class="mb-4 relative bg-black rounded-xl overflow-hidden h-80 flex items-center justify-center border-4 border-gray-100 shadow-inner">
-      <video id="video" autoplay playsinline class="absolute inset-0 w-full h-full object-cover transform scale-x-[-1]"></video>
+    <!-- ปุ่มสแกนนิ้ว / Face ID แทนกล้อง -->
+    <div id="displayContainer" class="mb-4 relative bg-gray-50 rounded-xl overflow-hidden h-52 flex flex-col items-center justify-center border-2 border-dashed border-gray-300">
+      
+      <div id="authBox" class="flex flex-col items-center justify-center w-full h-full p-4">
+        <button onclick="verifyBiometrics()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-full font-bold shadow-lg flex items-center justify-center space-x-2 transition mb-3">
+            <span class="text-lg">🔐 สแกนนิ้ว / Face ID (ยืนยัน)</span>
+        </button>
+        <button onclick="registerBiometrics()" class="text-sm text-indigo-500 hover:text-indigo-700 underline font-medium">
+            + ลงทะเบียนชีวมิติเครื่องนี้ (ทำครั้งแรก)
+        </button>
+      </div>
+
       <div id="historyTableContainer" class="absolute inset-0 bg-white overflow-y-auto p-3 hidden">
         <h4 class="text-xs font-bold text-indigo-600 mb-2 text-center">📅 ประวัติเข้า-ออกงาน (เดือนปัจจุบัน)</h4>
         <table class="w-full text-xs text-left text-gray-600">
@@ -107,17 +122,14 @@
       <button id="btnOut" onclick="record('ออกงาน')" disabled class="bg-rose-500 hover:bg-rose-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold shadow-lg transition">ออกงาน</button>
     </div>
 
-    <!-- ปุ่มแสดงตารางเวลาทำงาน -->
     <button id="btnShowHistory" onclick="showEmpHistoryTable()" disabled class="w-full bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-sm shadow mb-2 transition flex items-center justify-center space-x-1">
       <span>📊 แสดงตารางเวลาทำงาน</span>
     </button>
 
-    <!-- ปุ่มเริ่มสแกนใหม่ -->
     <button onclick="restartScanning()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2.5 rounded-xl text-sm shadow mb-2 transition flex items-center justify-center space-x-1">
       <span>🔄 เริ่มสแกนใหม่</span>
     </button>
 
-    <!-- ปุ่มเข้าระบบ Admin -->
     <button onclick="openAdminLoginModal()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 rounded-xl text-xs transition border border-gray-200">
       ⚙️ เข้าสู่ระบบแอดมิน
     </button>
@@ -143,7 +155,6 @@
         <div><label class="block text-xs font-medium text-gray-600 mb-1">พนักงาน</label><select id="filterEmp" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[150px]"><option value="all">ทั้งหมดทุกคน</option></select></div>
         <div><label class="block text-xs font-medium text-gray-600 mb-1">สาขา</label><select id="filterBranch" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[150px]"><option value="all">รวมทุกสาขา</option></select></div>
         
-        <!-- นำตัวเลือกการเรียงลำดับกลับมา -->
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">เรียงตามวันที่</label>
           <select id="sortByDate" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[130px]">
@@ -163,7 +174,6 @@
         <div class="w-full flex flex-wrap gap-2 mt-2 border-b pb-4 border-gray-200">
           <button onclick="loadReports()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition flex-1 sm:flex-none shadow">🔍 ค้นหา</button>
           <button onclick="exportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition flex-1 sm:flex-none shadow">📥 ดาวน์โหลด Excel</button>
-          <button onclick="promptDeletePhotos()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition sm:ml-auto flex-1 sm:flex-none shadow">🗑 ลบรูปเก่า</button>
         </div>
 
         <div class="w-full flex flex-wrap gap-2 mt-2 items-center bg-rose-50 p-3 rounded-lg border border-rose-200">
@@ -187,10 +197,10 @@
     <!-- Tab 2: Users -->
     <div id="tabUsers" class="tab-content hidden">
       <div class="bg-blue-50 p-6 rounded-xl border border-blue-100 mb-6">
-        <h4 id="formTitle" class="font-bold text-indigo-800 mb-4 flex items-center">➕ ลงทะเบียนพนักงานใหม่ (สแกนใบหน้าเท่านั้น)</h4>
+        <h4 id="formTitle" class="font-bold text-indigo-800 mb-4 flex items-center">➕ เพิ่ม/แก้ไข พนักงาน</h4>
         <input type="hidden" id="editUsernameTarget" value="">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-          <div class="space-y-3 bg-white p-4 rounded-lg shadow-sm">
+          <div class="space-y-3 bg-white p-4 rounded-lg shadow-sm w-full md:col-span-2">
             <div>
               <label class="block text-xs font-medium text-gray-500 mb-1">Username (ชื่ออ้างอิงระบบ)</label>
               <input type="text" id="addU" placeholder="Username" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
@@ -203,14 +213,7 @@
               <label class="block text-xs font-medium text-gray-500 mb-1">ชื่อ-นามสกุล</label>
               <input type="text" id="addName" placeholder="ชื่อ-สกุล" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
             </div>
-          </div>
-          <div class="flex flex-col items-center justify-center bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-            <video id="adminVideo" autoplay playsinline class="w-48 h-48 bg-black rounded-full object-cover mb-4 transform scale-x-[-1] border-4 border-indigo-100"></video>
-            <div class="flex space-x-2 w-full max-w-[250px]">
-                <button onclick="startAdminCamera()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-2 py-2 rounded-lg text-xs font-bold transition">1. เปิดกล้อง</button>
-                <button onclick="scanAdminFace()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-2 rounded-lg text-xs font-bold transition shadow-md">2. สแกนจำใบหน้า</button>
-            </div>
-            <p id="adminFaceStatus" class="text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200">❌ ยังไม่มีข้อมูลใบหน้า</p>
+            <p class="text-xs text-gray-500 mt-2">* พนักงานจะทำการลงทะเบียนลายนิ้วมือ/ใบหน้า ด้วยตนเองผ่านหน้าแอปพลิเคชัน</p>
           </div>
         </div>
         <div class="flex space-x-2">
@@ -250,34 +253,24 @@
 
     var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    document.addEventListener("DOMContentLoaded", function() {
+    document.addEventListener("DOMContentLoaded", async function() {
       flatpickr("#filterStart", { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", locale: "th" });
       flatpickr("#filterEnd", { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", locale: "th" });
       
-      var MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
-      Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-      ]).then(async function() {
+      try {
+        await preloadUsersForLogin();
+        loadUserBranches();
         document.getElementById('loading').style.display = 'none';
         document.getElementById('pageUser').classList.remove('hidden');
-        await preloadUsersForLogin();
-        startCamera();
-        loadUserBranches();
-        startContinuousFaceRecognition();
         startIdleTimer();
-      }).catch(function(e) {
-        alert("โหลด AI ไม่สำเร็จ กรุณาเช็คอินเทอร์เน็ต: " + e.message);
-      });
+      } catch(e) {
+        alert("โหลดระบบไม่สำเร็จ กรุณาเช็คอินเทอร์เน็ต: " + e.message);
+      }
     });
 
     var user = null, branches = [], allUsers = [], cachedLoginUsers = [], curLat = 0, curLng = 0, curDist = 0, currentBranchName = '';
-    var videoStream = null, adminVideoStream = null;
     var isGpsOk = false, isFaceOk = false;
-    var continuousFaceInterval = null;
     var watchGpsId = null;
-    var tempFaceDescriptor = null;
 
     var logoutTimerId = null;
     var IDLE_TIME_LIMIT = 30; 
@@ -300,59 +293,134 @@
       try {
         var { data, error } = await supabaseClient.from('users').select('*');
         if (!error && data) {
-          cachedLoginUsers = data.map(function(emp) {
-            return {
-              emp_id: emp.emp_id,
-              emp_name: emp.emp_name,
-              face_data: emp.face_data ? new Float32Array(JSON.parse(emp.face_data)) : null
-            };
-          });
+          cachedLoginUsers = data;
+          populateUserSelect();
         }
       } catch (err) {
         console.log("Preload error:", err);
       }
     }
 
-    function startContinuousFaceRecognition() {
-      var video = document.getElementById('video');
-      var statusEl = document.getElementById('faceStatus');
-      var nameEl = document.getElementById('uName');
-      var idEl = document.getElementById('uId');
+    function populateUserSelect() {
+        var sel = document.getElementById('empSelect');
+        sel.innerHTML = '<option value="">-- กรุณาเลือกชื่อพนักงาน --</option>';
+        cachedLoginUsers.forEach(function(u) {
+            sel.innerHTML += '<option value="' + u.emp_id + '">' + u.emp_name + ' (รหัส: ' + u.emp_id + ')</option>';
+        });
+    }
 
-      if (continuousFaceInterval) clearInterval(continuousFaceInterval);
+    function resetAuth() {
+        user = null;
+        isFaceOk = false;
+        document.getElementById('uName').innerText = 'รอการสแกน...';
+        document.getElementById('uId').innerText = '-';
+        document.getElementById('faceStatus').innerHTML = '<span class="text-medium text-gray-600">👤 รอการยืนยันตัวตน...</span>';
+        checkEnableButtons();
+    }
 
-      continuousFaceInterval = setInterval(async function() {
-        if (!isAppActive || !video.videoWidth || cachedLoginUsers.length === 0 || isFaceOk) return;
-        
-        try {
-          var detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-          if (detection) {
-            for (var i = 0; i < cachedLoginUsers.length; i++) {
-              var emp = cachedLoginUsers[i];
-              if (emp.face_data) {
-                var distance = faceapi.euclideanDistance(emp.face_data, detection.descriptor);
+    // ฟังก์ชันใหม่: ลงทะเบียน WebAuthn 
+    async function registerBiometrics() {
+        var empId = document.getElementById('empSelect').value;
+        if(!empId) return alert("กรุณาเลือกชื่อของคุณจากกล่องข้อความก่อนครับ");
 
-                if (distance <= 0.48) {
-                  isFaceOk = true;
-                  user = { empId: emp.emp_id.toString(), empName: emp.emp_name, faceData: JSON.stringify(Array.from(emp.face_data)) };
-                  
-                  nameEl.innerText = user.empName;
-                  idEl.innerText = user.empId;
-                  statusEl.innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">✅ ยืนยันตัวตนผ่าน! (AI)</span>';
-                  
-                  checkEnableButtons();
-                  document.getElementById('btnShowHistory').disabled = false;
-                  
-                  clearAllTimers();
-                  return;
-                }
-              }
-            }
-          }
-        } catch(err) {
-          console.log(err);
+        if (!window.PublicKeyCredential) {
+            return alert("อุปกรณ์หรือเบราว์เซอร์นี้ไม่รองรับระบบสแกนลายนิ้วมือ/ใบหน้า (WebAuthn)");
         }
-      }, 1000);
+
+        loading(true, 'กำลังเปิดระบบสแกนของเครื่อง...');
+        try {
+            var randomChallenge = new Uint8Array(32);
+            window.crypto.getRandomValues(randomChallenge);
+            var randomUserId = new Uint8Array(16);
+            window.crypto.getRandomValues(randomUserId);
+
+            var publicKey = {
+                challenge: randomChallenge,
+                rp: { name: "Time Attendance" },
+                user: {
+                    id: randomUserId,
+                    name: empId,
+                    displayName: "รหัสพนักงาน " + empId
+                },
+                pubKeyCredParams: [
+                    { type: "public-key", alg: -7 },
+                    { type: "public-key", alg: -257 }
+                ],
+                authenticatorSelection: {
+                    authenticatorAttachment: "platform", // บังคับใช้ระบบความปลอดภัยบนตัวเครื่อง (FaceID / Fingerprint)
+                    userVerification: "required"
+                },
+                timeout: 60000,
+                attestation: "none"
+            };
+
+            var cred = await navigator.credentials.create({ publicKey });
+            var rawIdArray = Array.from(new Uint8Array(cred.rawId));
+
+            // นำ RawID ไปบันทึกทับในคอลัมน์ face_data เดิม
+            var { error } = await supabaseClient.from('users')
+                .update({ face_data: JSON.stringify(rawIdArray) })
+                .eq('emp_id', empId);
+
+            loading(false);
+            if(error) throw error;
+            alert('✅ ลงทะเบียนชีวมิติสำเร็จ! ตอนนี้สามารถสแกนเข้าทำงานได้แล้วครับ');
+            await preloadUsersForLogin(); 
+        } catch(err) {
+            loading(false);
+            console.error(err);
+            alert("ยกเลิกหรือล้มเหลว: " + err.message);
+        }
+    }
+
+    // ฟังก์ชันใหม่: ตรวจสอบยืนยันตัวตนด้วย WebAuthn
+    async function verifyBiometrics() {
+        var empId = document.getElementById('empSelect').value;
+        if(!empId) return alert("กรุณาเลือกชื่อของคุณก่อนกดสแกนครับ");
+
+        var dbUser = cachedLoginUsers.find(u => u.emp_id == empId);
+        if(!dbUser || !dbUser.face_data || dbUser.face_data.length < 5) {
+            return alert("คุณยังไม่ได้ลงทะเบียนชีวมิติในระบบ กรุณากดปุ่มลงทะเบียนด้านล่างก่อนครับ");
+        }
+
+        loading(true, 'กำลังเปิดระบบสแกน...');
+        try {
+            var rawIdArray = JSON.parse(dbUser.face_data);
+            var rawIdBuffer = new Uint8Array(rawIdArray).buffer;
+
+            var randomChallenge = new Uint8Array(32);
+            window.crypto.getRandomValues(randomChallenge);
+
+            var publicKey = {
+                challenge: randomChallenge,
+                allowCredentials: [{
+                    id: rawIdBuffer,
+                    type: 'public-key'
+                }],
+                userVerification: "required",
+                timeout: 60000
+            };
+
+            var assertion = await navigator.credentials.get({ publicKey });
+            if(assertion) {
+                // ผ่านการสแกนนิ้ว/สแกนหน้า
+                isFaceOk = true;
+                user = { empId: dbUser.emp_id.toString(), empName: dbUser.emp_name };
+                
+                document.getElementById('uName').innerText = user.empName;
+                document.getElementById('uId').innerText = user.empId;
+                document.getElementById('faceStatus').innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">✅ ยืนยันตัวตนผ่าน! (WebAuthn)</span>';
+                
+                checkEnableButtons();
+                document.getElementById('btnShowHistory').disabled = false;
+                clearAllTimers();
+            }
+            loading(false);
+        } catch(err) {
+            loading(false);
+            console.error(err);
+            alert("ยืนยันตัวตนไม่สำเร็จ หรือกดยกเลิก");
+        }
     }
 
     async function showEmpHistoryTable() {
@@ -427,7 +495,7 @@
           }
         }
 
-        document.getElementById('video').classList.add('hidden');
+        document.getElementById('authBox').classList.add('hidden');
         document.getElementById('historyTableContainer').classList.remove('hidden');
       } catch (err) {
         console.log("History error:", err);
@@ -445,11 +513,6 @@
 
     function stopCameraAndGps() {
       isAppActive = false; 
-      if (continuousFaceInterval) { clearInterval(continuousFaceInterval); continuousFaceInterval = null; }
-      if (videoStream) {
-        videoStream.getTracks().forEach(function(t) { t.stop(); });
-        videoStream = null;
-      }
       if (watchGpsId !== null) {
         navigator.geolocation.clearWatch(watchGpsId);
         watchGpsId = null;
@@ -460,21 +523,17 @@
     function restartScanning() {
       isAppActive = true; 
       document.getElementById('successModal').classList.add('hidden');
-      user = null; isFaceOk = false; isGpsOk = false;
-      document.getElementById('uName').innerText = 'กำลังสแกนใบหน้า...';
-      document.getElementById('uId').innerText = '-';
-      document.getElementById('faceStatus').innerHTML = '<span class="text-medium text-gray-600">👤 กำลังค้นหาใบหน้าพนักงาน...</span>';
-      document.getElementById('gpsStatus').innerHTML = '<span class="text-medium text-gray-600">📍 กำลังค้นหาพิกัด GPS...</span>';
-      
       document.getElementById('historyTableContainer').classList.add('hidden');
-      document.getElementById('video').classList.remove('hidden');
+      document.getElementById('authBox').classList.remove('hidden');
+      
+      document.getElementById('empSelect').value = "";
+      resetAuth();
+      
+      document.getElementById('gpsStatus').innerHTML = '<span class="text-medium text-gray-600">📍 กำลังค้นหาพิกัด GPS...</span>';
       document.getElementById('btnShowHistory').disabled = true;
 
       checkEnableButtons();
-
-      startCamera();
       loadUserBranches();
-      startContinuousFaceRecognition();
       startIdleTimer();
     }
 
@@ -503,7 +562,7 @@
     function logoutAdmin() {
       switchPage('pageUser');
       document.getElementById('successTitle').innerText = 'ออกจากระบบแอดมินแล้ว';
-      document.getElementById('successMessage').innerText = 'ระบบได้ปิดกล้องและ GPS เรียบร้อยแล้ว กรุณากดปุ่มเพื่อเริ่มสแกนใหม่';
+      document.getElementById('successMessage').innerText = 'ระบบพร้อมให้บันทึกเวลาใหม่';
       document.getElementById('successModal').classList.add('hidden');
       stopCameraAndGps(); 
       document.getElementById('successModal').classList.remove('hidden');
@@ -527,7 +586,7 @@
         if (remaining <= 0) {
           stopCameraAndGps();
           document.getElementById('successTitle').innerText = 'หมดเวลาการใช้งาน';
-          document.getElementById('successMessage').innerText = 'ครบ 30 วินาที ระบบได้ปิดกล้องและ GPS เพื่อความปลอดภัย';
+          document.getElementById('successMessage').innerText = 'ครบ 30 วินาที ระบบได้ตัดการเชื่อมต่อเพื่อความปลอดภัย';
           document.getElementById('successModal').classList.remove('hidden');
         } else {
           document.getElementById('logoutCountdown').innerText = remaining;
@@ -557,46 +616,6 @@
            document.getElementById('btnIn').disabled = true;
            document.getElementById('btnOut').disabled = true;
        }
-    }
-
-    function startCamera() {
-      if (!isAppActive) return;
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).then(function(stream) {
-        if (!isAppActive) {
-          stream.getTracks().forEach(function(t) { t.stop(); });
-          return;
-        }
-        videoStream = stream;
-        document.getElementById('video').srcObject = stream;
-      }).catch(function(e) { alert('เปิดกล้องไม่ได้: ' + e.message); });
-    }
-
-    function startAdminCamera() {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).then(function(stream) {
-        adminVideoStream = stream;
-        document.getElementById('adminVideo').srcObject = stream;
-      }).catch(function(e) { alert('เปิดกล้องไม่ได้: ' + e.message); });
-    }
-
-    function scanAdminFace() {
-        var video = document.getElementById('adminVideo');
-        if(!video.videoWidth) return alert('กรุณากดเปิดกล้องก่อนครับ');
-        loading(true, 'แปลงใบหน้าเป็นรหัส Vector...');
-        
-        faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor().then(function(detection) {
-            loading(false);
-            if(detection) {
-                tempFaceDescriptor = Array.from(detection.descriptor); 
-                var statusEl = document.getElementById('adminFaceStatus');
-                statusEl.innerText = '✅ สแกนข้อมูลใบหน้าสำเร็จ';
-                statusEl.className = 'text-xs text-emerald-600 mt-3 font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200';
-            } else {
-                alert('❌ มองไม่เห็นใบหน้า กรุณามองกล้องในที่สว่างครับ');
-            }
-        }).catch(function(e) {
-            loading(false);
-            alert('เกิดข้อผิดพลาดในการสแกน');
-        });
     }
 
     async function loadUserBranches() {
@@ -652,6 +671,7 @@
       return 12742000 * Math.asin(Math.sqrt(a));
     }
 
+    // ฟังก์ชันบันทึกเวลา คงไว้แบบเดิมสมบูรณ์ ห้ามแตะต้อง!
     async function record(type) {
       if(!isAppActive || !isGpsOk || !isFaceOk) return alert('เงื่อนไขยังไม่ครบถ้วน');
       
@@ -661,7 +681,7 @@
       var dateStr = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + now.getFullYear();
       var timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
       var distStr = Math.floor(curDist) + "m";
-      var photoStatus = "✅ ผ่าน AI";
+      var photoStatus = "✅ WebAuthn";
 
       try {
         if (type === 'เข้างาน') {
@@ -721,13 +741,12 @@
 
         stopCameraAndGps();
         document.getElementById('successTitle').innerText = 'บันทึกเวลาสำเร็จ!';
-        document.getElementById('successMessage').innerText = 'บันทึกเวลา ' + type + ' (' + currentBranchName + ') เรียบร้อยแล้ว\nระบบได้ปิดกล้องและ GPS ให้แล้วครับ';
+        document.getElementById('successMessage').innerText = 'บันทึกเวลา ' + type + ' (' + currentBranchName + ') เรียบร้อยแล้ว\nระบบได้ปิดการเชื่อมต่อเพื่อความปลอดภัย';
         document.getElementById('successModal').classList.remove('hidden');
       } catch (err) {
         loading(false); 
         alert('ผิดพลาด: ' + err.message); 
         startIdleTimer();
-        startContinuousFaceRecognition();
       }
     }
 
@@ -1119,10 +1138,6 @@
       document.getElementById('formTitle').innerText = '✏️ แก้ไขข้อมูลพนักงาน: ' + found.username;
       document.getElementById('btnSaveUser').innerText = '💾 บันทึกการแก้ไข';
       document.getElementById('btnCancelEdit').classList.remove('hidden');
-
-      var statusEl = document.getElementById('adminFaceStatus');
-      statusEl.innerText = '✅ มีข้อมูลใบหน้าเดิมอยู่แล้ว (หากต้องการเปลี่ยน ให้กดสแกนใหม่)';
-      statusEl.className = 'text-xs text-blue-600 mt-3 font-bold bg-blue-50 px-3 py-1 rounded-full border border-blue-200';
       
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -1132,15 +1147,10 @@
       document.getElementById('addU').value = '';
       document.getElementById('addU').disabled = false;
       document.getElementById('addName').value = '';
-      tempFaceDescriptor = null;
 
-      document.getElementById('formTitle').innerText = '➕ ลงทะเบียนพนักงานใหม่ (สแกนใบหน้าเท่านั้น)';
+      document.getElementById('formTitle').innerText = '➕ เพิ่ม/แก้ไข พนักงาน';
       document.getElementById('btnSaveUser').innerText = '✅ บันทึกพนักงานเข้าระบบ';
       document.getElementById('btnCancelEdit').classList.add('hidden');
-
-      var statusEl = document.getElementById('adminFaceStatus');
-      statusEl.innerText = '❌ ยังไม่มีข้อมูลใบหน้าใหม่';
-      statusEl.className = 'text-xs text-rose-500 mt-3 font-bold bg-rose-50 px-3 py-1 rounded-full border border-rose-200';
 
       loadAdminData();
     }
@@ -1159,12 +1169,7 @@
           loading(true, 'กำลังบันทึกข้อมูลพนักงาน...');
 
           if (editTarget) {
-            var updatePayload = {
-              emp_name: newName
-            };
-            if (tempFaceDescriptor) {
-              updatePayload.face_data = JSON.stringify(tempFaceDescriptor);
-            }
+            var updatePayload = { emp_name: newName };
 
             var { error } = await supabaseClient.from('users').update(updatePayload).eq('username', editTarget);
             loading(false);
@@ -1173,17 +1178,12 @@
             alert('✅ แก้ไขข้อมูลพนักงานสำเร็จ');
             cancelEditUser();
           } else {
-            if(!tempFaceDescriptor) {
-              loading(false);
-              return alert('กรุณาสแกนใบหน้าพนักงานก่อนบันทึกเข้าระบบครับ!');
-            }
-
             var { error } = await supabaseClient.from('users').insert([{
               username: newU,
               password: '',
               emp_id: newId,
               emp_name: newName,
-              face_data: JSON.stringify(tempFaceDescriptor)
+              face_data: "" // เริ่มต้นให้ค่าว่างไว้สำหรับ WebAuthn
             }]);
             loading(false);
 
