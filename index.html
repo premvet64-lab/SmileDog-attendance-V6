@@ -37,8 +37,8 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 relative">
 
-  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.7.3 -->
-  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.7.3</div>
+  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.7.4 -->
+  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.7.4</div>
 
   <!-- Loading -->
   <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
@@ -143,7 +143,7 @@
         <div><label class="block text-xs font-medium text-gray-600 mb-1">พนักงาน</label><select id="filterEmp" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[150px]"><option value="all">ทั้งหมดทุกคน</option></select></div>
         <div><label class="block text-xs font-medium text-gray-600 mb-1">สาขา</label><select id="filterBranch" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[150px]"><option value="all">รวมทุกสาขา</option></select></div>
         
-        <!-- ตัวเลือกการเรียงลำดับ -->
+        <!-- นำตัวเลือกการเรียงลำดับกลับมา -->
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">เรียงตามวันที่</label>
           <select id="sortByDate" class="border px-3 py-2 rounded-lg outline-none bg-white min-w-[130px]">
@@ -409,7 +409,7 @@
               }
 
               if (rec.time_out) {
-                timeOut = '<span class="text-gray-700 font-medium">' + rec.time_out + '</span>';
+                timeOut = '<span class="text-gray-700 font-normal">' + rec.time_out + '</span>';
               }
 
               historyBody.innerHTML += "<tr class='border-b hover:bg-gray-50'>" +
@@ -652,7 +652,6 @@
       return 12742000 * Math.asin(Math.sqrt(a));
     }
 
-    // ฟังก์ชันบันทึกเวลาที่แก้ไขให้บันทึกเดินหน้าไปข้างหน้าเสมอตามลำดับเวลาล่าสุด (ห้ามย้อนกลับไปจับคู่แถวเก่า)
     async function record(type) {
       if(!isAppActive || !isGpsOk || !isFaceOk) return alert('เงื่อนไขยังไม่ครบถ้วน');
       
@@ -679,7 +678,6 @@
           }]);
           if(error) throw error;
         } else {
-          // ดึงเฉพาะแถวที่เพิ่มเข้ามาล่าสุดของวันนี้ (ID สูงสุด) เพื่อตรวจสอบว่าเป็นแถวเข้างานที่ยังไม่ได้ออกหรือไม่
           var { data: existing, error: errFind } = await supabaseClient.from('attendance_data')
             .select('*')
             .eq('date', dateStr)
@@ -689,8 +687,6 @@
 
           var latestRow = (existing && existing.length > 0) ? existing[0] : null;
 
-          // เงื่อนไข: จะเติมเวลาออกเฉพาะ "แถวที่เป็นรายการล่าสุดในระบบ" และแถวนั้นต้องมีเวลาเข้าค้างอยู่ (time_in มีค่า และ time_out ว่าง) เท่านั้น
-          // ถ้าแถวสถิติล่าสุดมีเวลาออกไปแล้ว หรือเป็นแถวที่ไม่มีเวลาเข้าค้างอยู่ ระบบจะไม่ย้อนกลับไปหาแถวเก่า แต่จะสร้างแถวใหม่ (Insert) ทันที
           if (latestRow && latestRow.time_in && (!latestRow.time_out || latestRow.time_out === "")) {
             var oldBranch = latestRow.branch || "";
             var newBranch = (oldBranch === currentBranchName) ? oldBranch : oldBranch + ", " + currentBranchName;
@@ -918,8 +914,22 @@
         } else {
           for(var i = 0; i < reportData.length; i++) {
             var r = reportData[i];
-            var inBadge = r.time_in ? '<span class="text-emerald-600 font-bold">' + r.time_in + '</span>' : '-';
-            var outBadge = r.time_out ? '<span class="text-rose-600 font-bold">' + r.time_out + '</span>' : '-';
+            var inBadge = '-';
+            var outBadge = '-';
+
+            if (r.time_in) {
+              var tIn = r.time_in;
+              if (tIn >= "09:06:00" || tIn >= "09:06") {
+                inBadge = '<span class="text-rose-600 font-bold">' + tIn + '</span>';
+              } else {
+                inBadge = '<span class="text-emerald-600 font-bold">' + tIn + '</span>';
+              }
+            }
+
+            if (r.time_out) {
+              outBadge = '<span class="text-gray-700 font-normal">' + r.time_out + '</span>';
+            }
+
             var htmlIn = r.photo_in ? '<span class="text-emerald-600 text-xs font-bold">' + r.photo_in + '</span>' : '-';
             var htmlOut = r.photo_out ? '<span class="text-emerald-600 text-xs font-bold">' + r.photo_out + '</span>' : '-';
 
