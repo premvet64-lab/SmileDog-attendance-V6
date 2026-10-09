@@ -36,8 +36,8 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 relative">
 
-  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.8 -->
-  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.8</div>
+  <!-- แสดงเวอร์ชันแอปที่มุมขวาล่างเป็น v1.8.1 -->
+  <div class="fixed bottom-2 right-3 text-xs text-gray-400 font-medium z-40">v1.8.1</div>
 
   <!-- Loading -->
   <div id="loading" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
@@ -73,15 +73,7 @@
   <!-- 1. User Page -->
   <div id="pageUser" class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
     <div class="flex justify-between items-center mb-4 border-b pb-4">
-      <div><h3 class="font-bold text-lg text-gray-800" id="uName">รอการเลือกพนักงาน...</h3><p class="text-sm text-gray-500">รหัสพนักงาน: <span id="uId">-</span></p></div>
-    </div>
-
-    <!-- Dropdown เลือกพนักงาน -->
-    <div class="mb-4">
-        <label class="block text-sm font-bold text-gray-700 mb-1">เลือกชื่อของคุณเพื่อลงเวลา</label>
-        <select id="empSelect" onchange="resetAuth()" class="w-full border-2 border-indigo-200 px-3 py-2.5 rounded-xl outline-none bg-white font-medium text-indigo-800">
-            <option value="">-- กรุณาเลือกชื่อพนักงาน --</option>
-        </select>
+      <div><h3 class="font-bold text-lg text-gray-800" id="uName">รอการสแกน...</h3><p class="text-sm text-gray-500">รหัสพนักงาน: <span id="uId">-</span></p></div>
     </div>
     
     <div class="bg-blue-50 p-3 rounded-lg mb-4 text-center border border-blue-100 flex flex-col space-y-2">
@@ -90,19 +82,35 @@
       <p id="logoutTimerDisplay" class="text-xs font-bold text-rose-500 hidden">⏳ รีเซ็ตหน้าจอใน: <span id="logoutCountdown">30</span> วินาที</p>
     </div>
     
-    <!-- ปุ่มสแกนนิ้ว / Face ID แทนกล้อง -->
+    <!-- พื้นที่แสดงปุ่มสแกนนิ้ว / กล่องลงทะเบียน / ตารางประวัติ -->
     <div id="displayContainer" class="mb-4 relative bg-gray-50 rounded-xl overflow-hidden h-52 flex flex-col items-center justify-center border-2 border-dashed border-gray-300">
       
+      <!-- โหมด 1: ปุ่มสแกนเข้างานแบบไม่ต้องเลือกชื่อ -->
       <div id="authBox" class="flex flex-col items-center justify-center w-full h-full p-4">
         <button onclick="verifyBiometrics()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-full font-bold shadow-lg flex items-center justify-center space-x-2 transition mb-3">
-            <span class="text-lg">🔐 สแกนนิ้ว / Face ID (ยืนยัน)</span>
+            <span class="text-lg">🔐 สแกนนิ้ว / Face ID เพื่อลงเวลา</span>
         </button>
-        <button onclick="registerBiometrics()" class="text-sm text-indigo-500 hover:text-indigo-700 underline font-medium">
-            + ลงทะเบียนชีวมิติเครื่องนี้ (ทำครั้งแรก)
+        <button onclick="showRegisterBox()" class="text-sm text-indigo-500 hover:text-indigo-700 underline font-medium">
+            + ลงทะเบียนเครื่องนี้เข้ากับชื่อของคุณ (ทำครั้งแรก)
         </button>
       </div>
 
-      <div id="historyTableContainer" class="absolute inset-0 bg-white overflow-y-auto p-3 hidden">
+      <!-- โหมด 2: กล่องสำหรับเลือกชื่อเพื่อลงทะเบียนเครื่อง (ซ่อนไว้ตอนแรก) -->
+      <div id="registerBox" class="hidden flex-col items-center justify-center w-full h-full p-4 text-center bg-white absolute inset-0 z-10">
+          <label class="block text-sm font-bold text-gray-700 mb-2">เลือกรหัสพนักงานเพื่อผูกกับเครื่องนี้</label>
+          <select id="empSelect" class="w-full border-2 border-indigo-200 px-3 py-2 rounded-xl outline-none bg-white font-medium text-indigo-800 mb-3 text-sm">
+              <option value="">-- เลือกรหัสพนักงาน --</option>
+          </select>
+          <div class="flex space-x-2 w-full">
+              <button onclick="registerBiometrics()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg font-bold transition text-sm">
+                  ยืนยันลงทะเบียน
+              </button>
+              <button onclick="hideRegisterBox()" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold text-sm transition">ยกเลิก</button>
+          </div>
+      </div>
+
+      <!-- โหมด 3: ตารางประวัติ (ซ่อนไว้ตอนแรก) -->
+      <div id="historyTableContainer" class="absolute inset-0 bg-white overflow-y-auto p-3 hidden z-20">
         <h4 class="text-xs font-bold text-indigo-600 mb-2 text-center">📅 ประวัติเข้า-ออกงาน (เดือนปัจจุบัน)</h4>
         <table class="w-full text-xs text-left text-gray-600">
           <thead class="bg-gray-100 text-gray-700 uppercase font-bold sticky top-0">
@@ -127,7 +135,7 @@
     </button>
 
     <button onclick="restartScanning()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2.5 rounded-xl text-sm shadow mb-2 transition flex items-center justify-center space-x-1">
-      <span>🔄 เริ่มสแกนใหม่</span>
+      <span>🔄 รีเซ็ตเริ่มต้นใหม่</span>
     </button>
 
     <button onclick="openAdminLoginModal()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 rounded-xl text-xs transition border border-gray-200">
@@ -199,8 +207,8 @@
       <div class="bg-blue-50 p-6 rounded-xl border border-blue-100 mb-6">
         <h4 id="formTitle" class="font-bold text-indigo-800 mb-4 flex items-center">➕ เพิ่ม/แก้ไข พนักงาน</h4>
         <input type="hidden" id="editUsernameTarget" value="">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-          <div class="space-y-3 bg-white p-4 rounded-lg shadow-sm w-full md:col-span-2">
+        <div class="grid grid-cols-1 gap-6 mb-4">
+          <div class="space-y-3 bg-white p-4 rounded-lg shadow-sm w-full">
             <div>
               <label class="block text-xs font-medium text-gray-500 mb-1">Username (ชื่ออ้างอิงระบบ)</label>
               <input type="text" id="addU" placeholder="Username" class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-indigo-500">
@@ -217,7 +225,7 @@
           </div>
         </div>
         <div class="flex space-x-2">
-          <button id="btnSaveUser" onclick="manageU('add')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-lg shadow-lg transition">✅ บันทึกพนักงานเข้าระบบ</button>
+          <button id="btnSaveUser" onclick="manageU('add')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-lg shadow-lg transition">✅ บันทึกพนักงานเข้าระบบ</button>
           <button id="btnCancelEdit" onclick="cancelEditUser()" class="hidden bg-gray-400 hover:bg-gray-500 text-white px-6 py-3 rounded-xl font-bold transition">ยกเลิกแก้ไข</button>
         </div>
       </div>
@@ -303,25 +311,28 @@
 
     function populateUserSelect() {
         var sel = document.getElementById('empSelect');
-        sel.innerHTML = '<option value="">-- กรุณาเลือกชื่อพนักงาน --</option>';
+        sel.innerHTML = '<option value="">-- เลือกรหัสพนักงาน --</option>';
         cachedLoginUsers.forEach(function(u) {
             sel.innerHTML += '<option value="' + u.emp_id + '">' + u.emp_name + ' (รหัส: ' + u.emp_id + ')</option>';
         });
     }
 
-    function resetAuth() {
-        user = null;
-        isFaceOk = false;
-        document.getElementById('uName').innerText = 'รอการสแกน...';
-        document.getElementById('uId').innerText = '-';
-        document.getElementById('faceStatus').innerHTML = '<span class="text-medium text-gray-600">👤 รอการยืนยันตัวตน...</span>';
-        checkEnableButtons();
+    // ฟังก์ชันจัดการกล่องลงทะเบียน
+    function showRegisterBox() {
+        document.getElementById('authBox').classList.add('hidden');
+        document.getElementById('registerBox').classList.remove('hidden');
+        document.getElementById('empSelect').value = "";
     }
 
-    // ฟังก์ชันใหม่: ลงทะเบียน WebAuthn 
+    function hideRegisterBox() {
+        document.getElementById('registerBox').classList.add('hidden');
+        document.getElementById('authBox').classList.remove('hidden');
+    }
+
+    // ฟังก์ชัน: ลงทะเบียน WebAuthn 
     async function registerBiometrics() {
         var empId = document.getElementById('empSelect').value;
-        if(!empId) return alert("กรุณาเลือกชื่อของคุณจากกล่องข้อความก่อนครับ");
+        if(!empId) return alert("กรุณาเลือกชื่อของคุณก่อนครับ");
 
         if (!window.PublicKeyCredential) {
             return alert("อุปกรณ์หรือเบราว์เซอร์นี้ไม่รองรับระบบสแกนลายนิ้วมือ/ใบหน้า (WebAuthn)");
@@ -347,7 +358,7 @@
                     { type: "public-key", alg: -257 }
                 ],
                 authenticatorSelection: {
-                    authenticatorAttachment: "platform", // บังคับใช้ระบบความปลอดภัยบนตัวเครื่อง (FaceID / Fingerprint)
+                    authenticatorAttachment: "platform", 
                     userVerification: "required"
                 },
                 timeout: 60000,
@@ -357,14 +368,14 @@
             var cred = await navigator.credentials.create({ publicKey });
             var rawIdArray = Array.from(new Uint8Array(cred.rawId));
 
-            // นำ RawID ไปบันทึกทับในคอลัมน์ face_data เดิม
             var { error } = await supabaseClient.from('users')
                 .update({ face_data: JSON.stringify(rawIdArray) })
                 .eq('emp_id', empId);
 
             loading(false);
             if(error) throw error;
-            alert('✅ ลงทะเบียนชีวมิติสำเร็จ! ตอนนี้สามารถสแกนเข้าทำงานได้แล้วครับ');
+            alert('✅ ลงทะเบียนเครื่องมือถือนี้สำเร็จ! ตอนนี้สามารถกดสแกนเข้าทำงานได้แล้วครับ');
+            hideRegisterBox();
             await preloadUsersForLogin(); 
         } catch(err) {
             loading(false);
@@ -373,53 +384,60 @@
         }
     }
 
-    // ฟังก์ชันใหม่: ตรวจสอบยืนยันตัวตนด้วย WebAuthn
+    // ฟังก์ชัน: ตรวจสอบยืนยันตัวตนด้วย WebAuthn (ไม่ต้องเลือกชื่อ ส่งกุญแจทั้งหมดให้เครื่องหาเอง)
     async function verifyBiometrics() {
-        var empId = document.getElementById('empSelect').value;
-        if(!empId) return alert("กรุณาเลือกชื่อของคุณก่อนกดสแกนครับ");
-
-        var dbUser = cachedLoginUsers.find(u => u.emp_id == empId);
-        if(!dbUser || !dbUser.face_data || dbUser.face_data.length < 5) {
-            return alert("คุณยังไม่ได้ลงทะเบียนชีวมิติในระบบ กรุณากดปุ่มลงทะเบียนด้านล่างก่อนครับ");
+        var registeredUsers = cachedLoginUsers.filter(u => u.face_data && u.face_data.length > 5);
+        if(registeredUsers.length === 0) {
+            return alert("ยังไม่มีพนักงานคนใดลงทะเบียนเครื่องมือถือไว้เลยครับ กรุณากด 'ลงทะเบียนเครื่องนี้' ก่อน");
         }
 
         loading(true, 'กำลังเปิดระบบสแกน...');
         try {
-            var rawIdArray = JSON.parse(dbUser.face_data);
-            var rawIdBuffer = new Uint8Array(rawIdArray).buffer;
+            var allowCreds = registeredUsers.map(u => {
+                return {
+                    id: new Uint8Array(JSON.parse(u.face_data)).buffer,
+                    type: 'public-key'
+                };
+            });
 
             var randomChallenge = new Uint8Array(32);
             window.crypto.getRandomValues(randomChallenge);
 
             var publicKey = {
                 challenge: randomChallenge,
-                allowCredentials: [{
-                    id: rawIdBuffer,
-                    type: 'public-key'
-                }],
+                allowCredentials: allowCreds, // ส่งกุญแจผู้ใช้ทุกคนให้เครื่องมือถือหาคู่ที่ตรงเอง
                 userVerification: "required",
                 timeout: 60000
             };
 
             var assertion = await navigator.credentials.get({ publicKey });
             if(assertion) {
-                // ผ่านการสแกนนิ้ว/สแกนหน้า
-                isFaceOk = true;
-                user = { empId: dbUser.emp_id.toString(), empName: dbUser.emp_name };
+                // หารหัสที่ตรงกับในฐานข้อมูล
+                var matchedRawIdArray = Array.from(new Uint8Array(assertion.rawId));
+                var matchedRawIdString = JSON.stringify(matchedRawIdArray);
                 
-                document.getElementById('uName').innerText = user.empName;
-                document.getElementById('uId').innerText = user.empId;
-                document.getElementById('faceStatus').innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">✅ ยืนยันตัวตนผ่าน! (WebAuthn)</span>';
+                var dbUser = registeredUsers.find(u => u.face_data === matchedRawIdString);
                 
-                checkEnableButtons();
-                document.getElementById('btnShowHistory').disabled = false;
-                clearAllTimers();
+                if(dbUser) {
+                    isFaceOk = true;
+                    user = { empId: dbUser.emp_id.toString(), empName: dbUser.emp_name };
+                    
+                    document.getElementById('uName').innerText = user.empName;
+                    document.getElementById('uId').innerText = user.empId;
+                    document.getElementById('faceStatus').innerHTML = '<span class="text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded">✅ ยืนยันตัวตนผ่าน! ('+user.empName+')</span>';
+                    
+                    checkEnableButtons();
+                    document.getElementById('btnShowHistory').disabled = false;
+                    clearAllTimers();
+                } else {
+                    alert("สแกนผ่าน แต่ไม่พบข้อมูลผู้ใช้นี้ในระบบ");
+                }
             }
             loading(false);
         } catch(err) {
             loading(false);
             console.error(err);
-            alert("ยืนยันตัวตนไม่สำเร็จ หรือกดยกเลิก");
+            alert("ยืนยันตัวตนไม่สำเร็จ หรือกดยกเลิก\n(หากยังไม่เคยใช้งานเครื่องนี้ กรุณากดลงทะเบียนเครื่องก่อนครับ)");
         }
     }
 
@@ -496,6 +514,7 @@
         }
 
         document.getElementById('authBox').classList.add('hidden');
+        document.getElementById('registerBox').classList.add('hidden');
         document.getElementById('historyTableContainer').classList.remove('hidden');
       } catch (err) {
         console.log("History error:", err);
@@ -524,10 +543,16 @@
       isAppActive = true; 
       document.getElementById('successModal').classList.add('hidden');
       document.getElementById('historyTableContainer').classList.add('hidden');
-      document.getElementById('authBox').classList.remove('hidden');
       
+      // แสดงปุ่มสแกน ซ่อนกล่องลงทะเบียน
+      document.getElementById('authBox').classList.remove('hidden');
+      document.getElementById('registerBox').classList.add('hidden');
       document.getElementById('empSelect').value = "";
-      resetAuth();
+      
+      user = null; isFaceOk = false;
+      document.getElementById('uName').innerText = 'รอการสแกน...';
+      document.getElementById('uId').innerText = '-';
+      document.getElementById('faceStatus').innerHTML = '<span class="text-medium text-gray-600">👤 รอการยืนยันตัวตน...</span>';
       
       document.getElementById('gpsStatus').innerHTML = '<span class="text-medium text-gray-600">📍 กำลังค้นหาพิกัด GPS...</span>';
       document.getElementById('btnShowHistory').disabled = true;
